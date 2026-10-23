@@ -7,7 +7,7 @@ import {
   getHistoryController,
   clearHistoryController,
   getHealthController,
-} from './src/server/controllers';
+} from './backend/controllers';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +20,7 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  // API Routes (Mounted under /api and root aliases for backwards compatibility)
+  // Backend API Routes (Routed directly to /backend controllers)
   app.post('/api/analyze', analyzeJobController);
   app.post('/analyze', analyzeJobController);
 
@@ -47,7 +47,8 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[JobSentry] Full-Stack server running at http://0.0.0.0:${PORT} (env: ${process.env.NODE_ENV || 'development'})`);
+    console.log(`[JobSentry] Multi-service server running at http://0.0.0.0:${PORT} (env: ${process.env.NODE_ENV || 'development'})`);
+    console.log(`[JobSentry] Backend: /backend | Frontend: /frontend (Vite) | ML: /ml_service | SSOT: /shared`);
   });
 }
 
