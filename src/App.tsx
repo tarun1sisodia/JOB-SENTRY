@@ -7,45 +7,66 @@ import { CommonScams } from './components/CommonScams';
 import { ScamHelpline } from './components/ScamHelpline';
 import { HistoryTable } from './components/HistoryTable';
 import { Disclaimer } from './components/Disclaimer';
-import { AnalyzeRequest, AnalyzeResponse, JobCheckRecord } from './types';
+import {
+  JobCheckInput,
+  JobCheckOutput,
+  JobAuditRecord,
+  AppStage,
+} from './shared/contracts';
 import {
   analyzeJobAPI,
-  getStoredChecks,
-  clearStoredChecks,
-  validateJobInput,
+  fetchHistoryAPI,
+  clearHistoryAPI,
+  validateClientInput,
 } from './services/api';
 
 export const App: React.FC = () => {
-  const [formData, setFormData] = useState<AnalyzeRequest>({
-    job_text: '',
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [stage, setStage] = useState<AppStage>('production');
+  const [simulateOffline, setSimulateOffline] = useState<boolean>(false);
+
+  const [formData, setFormData] = useState<JobCheckInput>({
+    jobText: '',
     email: '',
     company: '',
     salary: '',
+    stage: 'production',
   });
-
-  const [useHeuristics, setUseHeuristics] = useState<boolean>(false);
-  const [simulateBackendDown, setSimulateBackendDown] = useState<boolean>(false);
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
 
-  const [result, setResult] = useState<AnalyzeResponse | null>(null);
-  const [lastSavedRecord, setLastSavedRecord] = useState<JobCheckRecord | null>(null);
-  const [historyRecords, setHistoryRecords] = useState<JobCheckRecord[]>([]);
+  const [result, setResult] = useState<JobCheckOutput | null>(null);
+  const [lastSavedRecord, setLastSavedRecord] = useState<JobAuditRecord | null>(null);
+  const [historyRecords, setHistoryRecords] = useState<JobAuditRecord[]>([]);
 
-  // Load past checks on mount
+  // Apply theme to document element
   useEffect(() => {
-    const checks = getStoredChecks();
-    setHistoryRecords(checks);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  // Load audit history on mount
+  useEffect(() => {
+    loadHistory();
   }, []);
+
+  const loadHistory = async () => {
+    const records = await fetchHistoryAPI();
+    setHistoryRecords(records);
+  };
 
   const handleClearForm = () => {
     setFormData({
-      job_text: '',
+      jobText: '',
       email: '',
       company: '',
       salary: '',
+      stage,
     });
     setFieldErrors({});
     setErrorMessage(null);
@@ -55,13 +76,12 @@ export const App: React.FC = () => {
     setErrorMessage(null);
     setFieldErrors({});
 
-    // Client-side quick check
-    const validation = validateJobInput(formData);
+    const validation = validateClientInput(formData);
     if (!validation.isValid) {
       if (validation.field) {
-        setFieldErrors({ [validation.field]: validation.error || 'Invalid input' });
+        setFieldErrors({ [validation.field]: validation.error || 'Invalid parameter' });
       }
-      setErrorMessage(validation.error || 'Please check your inputs.');
+      setErrorMessage(validation.error || 'Please review your input values.');
       return;
     }
 
@@ -69,19 +89,15 @@ export const App: React.FC = () => {
 
     try {
       const outcome = await analyzeJobAPI(formData, {
-        useHeuristics,
-        simulateBackendDown,
-        latencyMs: 650,
+        simulateOffline,
+        stage,
       });
 
-      setResult(outcome.response);
+      setResult(outcome.output);
       setLastSavedRecord(outcome.record);
 
-      // Refresh history records from database
-      const updatedHistory = getStoredChecks();
-      setHistoryRecords(updatedHistory);
+      await loadHistory();
 
-      // Smooth scroll to the result card
       setTimeout(() => {
         const resultEl = document.getElementById('result-section');
         if (resultEl) {
@@ -96,31 +112,28 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleClearHistory = () => {
-    clearStoredChecks();
+  const handleClearHistory = async () => {
+    await clearHistoryAPI();
     setHistoryRecords([]);
   };
 
-  const handleSelectRecord = (record: JobCheckRecord) => {
+  const handleSelectRecord = (record: JobAuditRecord) => {
     setFormData({
-      job_text: record.job_text,
+      jobText: record.jobText,
       email: record.email || '',
       company: record.company || '',
       salary: record.salary || '',
+      stage: record.stage,
     });
     setResult({
-      risk_level: record.risk_level,
+      riskLevel: record.riskLevel,
+      risk_level: record.riskLevel,
       score: record.score,
-      red_flags:
-        record.risk_level === 'High'
-          ? ['Free email domain', 'Asks for registration fee']
-          : record.risk_level === 'Medium'
-          ? ['Unverified email provider', 'Vague company details']
-          : ['No overt automated red flags detected'],
-      advice:
-        record.risk_level === 'High'
-          ? ['Never pay for a job', 'Verify the company website']
-          : ['Verify recruiter on LinkedIn and check official careers portal'],
+      redFlags: record.redFlags,
+      red_flags: record.redFlags,
+      advice: record.advice,
+      stage: record.stage,
+      evaluatedAt: record.createdAt,
     });
     setLastSavedRecord(record);
 
@@ -128,14 +141,18 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Sticky Navigation */}
+    <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 bg-grid-pattern animate-grid-subtle flex flex-col font-sans transition-colors selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-950">
+      {/* 3-Zone Sticky Navigation */}
       <Navbar
-        useHeuristics={useHeuristics}
-        setUseHeuristics={setUseHeuristics}
-        simulateBackendDown={simulateBackendDown}
-        setSimulateBackendDown={setSimulateBackendDown}
-        historyCount={historyRecords.length}
+        theme={theme}
+        setTheme={setTheme}
+        stage={stage}
+        setStage={(s) => {
+          setStage(s);
+          setFormData((prev) => ({ ...prev, stage: s }));
+        }}
+        simulateOffline={simulateOffline}
+        setSimulateOffline={setSimulateOffline}
       />
 
       <main className="flex-1">
@@ -152,7 +169,7 @@ export const App: React.FC = () => {
           onClear={handleClearForm}
         />
 
-        {/* 4. Result card: colour-coded risk badge (green Low, orange Medium, red High), score as a progress bar, red flags list, advice list */}
+        {/* 4. Result card: colour-coded risk badge, score as progress bar, red flags, advice */}
         <ResultCard result={result} lastRecord={lastSavedRecord} />
 
         {/* 5. “How it works” in 3 steps */}

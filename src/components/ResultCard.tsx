@@ -1,21 +1,10 @@
 import React, { useState } from 'react';
-import {
-  ShieldAlert,
-  ShieldCheck,
-  AlertTriangle,
-  CheckCircle2,
-  Copy,
-  Check,
-  Clock,
-  Building,
-  Mail,
-  DollarSign,
-} from 'lucide-react';
-import { AnalyzeResponse, JobCheckRecord } from '../types';
+import { Copy, Check, Clock } from 'lucide-react';
+import { JobCheckOutput, JobAuditRecord } from '../shared/contracts';
 
 interface ResultCardProps {
-  result: AnalyzeResponse | null;
-  lastRecord: JobCheckRecord | null;
+  result: JobCheckOutput | null;
+  lastRecord: JobAuditRecord | null;
 }
 
 export const ResultCard: React.FC<ResultCardProps> = ({ result, lastRecord }) => {
@@ -25,186 +14,158 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, lastRecord }) =>
 
   const scorePercentage = Math.round(result.score * 100);
 
-  // Badge and theme styles based on risk level
-  const badgeConfig = {
-    Low: {
-      label: 'Low Risk',
-      badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-      barClass: 'bg-emerald-500',
-      barTrackClass: 'bg-emerald-950/60',
-      icon: ShieldCheck,
-      description: 'Few or no fraudulent signals detected in the provided job posting.',
-    },
-    Medium: {
-      label: 'Medium Risk',
-      badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-      barClass: 'bg-amber-500',
-      barTrackClass: 'bg-amber-950/60',
-      icon: AlertTriangle,
-      description: 'Potentially questionable patterns found. Exercise vigilance before proceeding.',
-    },
-    High: {
-      label: 'High Risk',
-      badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
-      barClass: 'bg-rose-500',
-      barTrackClass: 'bg-rose-950/60',
-      icon: ShieldAlert,
-      description: 'Multiple high-confidence scam markers detected. Strong caution advised.',
-    },
-  }[result.risk_level];
-
-  const RiskIcon = badgeConfig.icon;
-
   const handleCopyReport = () => {
     const reportText = `JobSentry Risk Analysis Report
-Risk Level: ${result.risk_level} (Score: ${result.score})
-Company: ${lastRecord?.company || 'Not specified'}
-Recruiter Email: ${lastRecord?.email || 'Not specified'}
+Risk Level: ${result.riskLevel} (Score: ${result.score})
+Evaluated At: ${result.evaluatedAt}
+Environment: ${result.stage}
 
 Red Flags:
-${result.red_flags.map((rf) => `- ${rf}`).join('\n')}
+${result.redFlags.map((rf) => `- ${rf}`).join('\n')}
 
-Recommended Advice:
+Advice:
 ${result.advice.map((adv) => `- ${adv}`).join('\n')}
 
-Advisory Note: This is an advisory risk indicator, not proof of fraud.`;
+Note: This is an advisory risk indicator, not proof of fraud.`;
 
     navigator.clipboard.writeText(reportText);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
-    <section id="result-section" className="py-10 border-b border-slate-800/80 bg-slate-900/40">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-6 sm:p-8 shadow-2xl backdrop-blur-md relative overflow-hidden">
-          {/* Subtle top indicator bar */}
-          <div className={`absolute top-0 left-0 right-0 h-1.5 ${badgeConfig.barClass}`} />
-
-          {/* Result Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-700/80">
+    <section id="result-section" className="py-10 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/40">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 animate-fade-in">
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 sm:p-8 shadow-sm">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-100 dark:border-zinc-800">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs uppercase font-bold tracking-widest text-slate-400">
-                  Analysis Outcome
-                </span>
+              <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono mb-1">
+                <span>Evaluation Result</span>
+                <span>·</span>
+                <span className="capitalize">{result.stage}</span>
                 {lastRecord && (
-                  <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
-                    <Clock className="w-3 h-3" />
-                    {new Date(lastRecord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <>
+                    <span>·</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {new Date(result.evaluatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </>
                 )}
               </div>
-              <h2 className="text-2xl font-extrabold text-white flex items-center gap-3">
-                <span>Job Risk Assessment</span>
+              <h2 className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-zinc-50">
+                Risk Assessment Summary
               </h2>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Colour-coded Risk Badge */}
-              <div
-                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-sm font-bold tracking-wide shadow-sm ${badgeConfig.badgeClass}`}
-              >
-                <RiskIcon className="w-4 h-4" />
-                <span>{badgeConfig.label}</span>
+              {/* High Contrast Risk Label (No Candy Pills) */}
+              <div className="px-3 py-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-xs font-bold text-zinc-950 dark:text-zinc-50">
+                Risk Level: {result.riskLevel}
               </div>
 
               {/* Copy Report */}
               <button
                 type="button"
                 onClick={handleCopyReport}
-                className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-300 border border-slate-600/60 transition-colors"
-                title="Copy full advisory report"
+                className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-300 transition-colors"
+                title="Copy assessment report"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          {/* Submission metadata summary if provided */}
+          {/* Metadata String */}
           {lastRecord && (lastRecord.company || lastRecord.email || lastRecord.salary) && (
-            <div className="py-3 px-4 my-4 rounded-xl bg-slate-900/60 border border-slate-700/60 flex flex-wrap items-center gap-4 text-xs text-slate-300">
+            <div className="py-2.5 px-3 my-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800/80 flex flex-wrap items-center gap-3 text-xs text-zinc-600 dark:text-zinc-400 font-mono">
               {lastRecord.company && (
-                <div className="flex items-center gap-1.5">
-                  <Building className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-slate-400">Company:</span>
-                  <span className="font-semibold text-slate-200">{lastRecord.company}</span>
-                </div>
+                <span>Company: <strong className="text-zinc-900 dark:text-zinc-100">{lastRecord.company}</strong></span>
               )}
               {lastRecord.email && (
-                <div className="flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-slate-400">Email:</span>
-                  <span className="font-mono text-slate-200">{lastRecord.email}</span>
-                </div>
+                <span>Email: <strong className="text-zinc-900 dark:text-zinc-100">{lastRecord.email}</strong></span>
               )}
               {lastRecord.salary && (
-                <div className="flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-slate-400">Salary:</span>
-                  <span className="font-mono text-slate-200">${lastRecord.salary}</span>
-                </div>
+                <span>Salary: <strong className="text-zinc-900 dark:text-zinc-100">${lastRecord.salary}</strong></span>
               )}
             </div>
           )}
 
           {/* Score as Progress Bar */}
           <div className="my-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-300">
-                Calculated Risk Score: <strong className="text-white font-mono text-sm">{result.score}</strong>{' '}
-                <span className="text-slate-400 font-normal">({scorePercentage}%)</span>
+            <div className="flex items-center justify-between mb-2 text-xs">
+              <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                Risk Score:{' '}
+                <strong className="text-zinc-950 dark:text-zinc-50 font-mono text-sm">
+                  {result.score}
+                </strong>{' '}
+                <span className="text-zinc-500 font-normal">({scorePercentage}%)</span>
               </span>
-              <span className="text-[11px] font-mono text-slate-400">
+              <span className="text-[11px] font-mono text-zinc-500">
                 Scale: 0.00 (Safe) → 1.00 (Critical)
               </span>
             </div>
 
-            {/* Bar Track */}
-            <div className="w-full h-3 rounded-full bg-slate-900 overflow-hidden border border-slate-700/80 p-0.5">
+            <div className="w-full h-2 rounded-full bg-zinc-100 dark:bg-zinc-900 overflow-hidden border border-zinc-200 dark:border-zinc-800">
               <div
-                className={`h-full rounded-full transition-all duration-700 ease-out ${badgeConfig.barClass}`}
+                className="h-full bg-zinc-950 dark:bg-zinc-100 transition-all duration-500"
                 style={{ width: `${Math.min(100, Math.max(5, scorePercentage))}%` }}
               />
             </div>
-
-            <p className="mt-2 text-xs text-slate-400">{badgeConfig.description}</p>
           </div>
 
-          {/* Grid: Red Flags & Advice */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-700/60">
-            {/* Red Flags List */}
-            <div className="bg-slate-900/60 rounded-xl p-5 border border-slate-700/60">
-              <div className="flex items-center gap-2 mb-3 text-rose-400 font-bold text-sm">
-                <AlertTriangle className="w-4 h-4 text-rose-400" />
-                <span>Identified Red Flags ({result.red_flags.length})</span>
-              </div>
-              <ul className="space-y-2.5">
-                {result.red_flags.map((flag, idx) => (
-                  <li key={idx} className="text-xs text-slate-200 flex items-start gap-2.5 leading-relaxed">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+          {/* Red Flags & Advice Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+            {/* Red Flags */}
+            <div className="bg-zinc-50 dark:bg-zinc-900/40 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-3">
+                Detected Red Flags ({result.redFlags.length})
+              </h3>
+              <ul className="space-y-2 text-xs text-zinc-700 dark:text-zinc-300">
+                {result.redFlags.map((flag, idx) => (
+                  <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-950 dark:bg-zinc-100 mt-1.5 shrink-0" />
                     <span>{flag}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {/* Advice List */}
-            <div className="bg-slate-900/60 rounded-xl p-5 border border-slate-700/60">
-              <div className="flex items-center gap-2 mb-3 text-emerald-400 font-bold text-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Recommended Verification Steps ({result.advice.length})</span>
-              </div>
-              <ul className="space-y-2.5">
+            {/* Advice */}
+            <div className="bg-zinc-50 dark:bg-zinc-900/40 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-3">
+                Recommended Verification Steps ({result.advice.length})
+              </h3>
+              <ul className="space-y-2 text-xs text-zinc-700 dark:text-zinc-300">
                 {result.advice.map((adv, idx) => (
-                  <li key={idx} className="text-xs text-slate-200 flex items-start gap-2.5 leading-relaxed">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                  <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500 mt-1.5 shrink-0" />
                     <span>{adv}</span>
                   </li>
                 ))}
               </ul>
             </div>
           </div>
+
+          {/* Staging Factor Breakdown if present */}
+          {result.factors && result.factors.length > 0 && (
+            <div className="mt-5 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/20 text-xs">
+              <div className="font-mono text-[11px] font-bold text-zinc-500 uppercase mb-2">
+                Staging Diagnostic Telemetry (Triggered Rule Factors)
+              </div>
+              <div className="space-y-1.5 font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
+                {result.factors.map((factor, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">{factor.id}</span>
+                    <span>[{factor.severity}]</span>
+                    <span>·</span>
+                    <span className="text-zinc-500">{factor.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>

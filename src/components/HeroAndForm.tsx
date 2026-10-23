@@ -1,23 +1,18 @@
 import React, { useState } from 'react';
 import {
-  Search,
-  Sparkles,
-  AlertCircle,
-  Briefcase,
-  Mail,
-  Building,
-  DollarSign,
   ClipboardPaste,
+  Sparkles,
   RotateCcw,
   Loader2,
-  CheckCircle,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
-import { AnalyzeRequest } from '../types';
+import { JobCheckInput } from '../shared/contracts';
 import { EXAMPLE_JOBS } from '../data/examples';
 
 interface HeroAndFormProps {
-  formData: AnalyzeRequest;
-  setFormData: React.Dispatch<React.SetStateAction<AnalyzeRequest>>;
+  formData: JobCheckInput;
+  setFormData: React.Dispatch<React.SetStateAction<JobCheckInput>>;
   onAnalyze: () => void;
   isLoading: boolean;
   errorMessage: string | null;
@@ -34,11 +29,10 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
   fieldErrors,
   onClear,
 }) => {
-  const [selectedExampleIndex, setSelectedExampleIndex] = useState<number>(0);
   const [showExampleMenu, setShowExampleMenu] = useState<boolean>(false);
   const [pasteSuccess, setPasteSuccess] = useState<boolean>(false);
 
-  const handleInputChange = (field: keyof AnalyzeRequest, value: string) => {
+  const handleInputChange = (field: keyof JobCheckInput, value: string) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -48,12 +42,12 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
   const handleApplyExample = (index: number) => {
     const ex = EXAMPLE_JOBS[index];
     setFormData({
-      job_text: ex.data.job_text,
+      jobText: ex.data.job_text,
       email: ex.data.email,
       company: ex.data.company,
       salary: ex.data.salary,
+      stage: formData.stage,
     });
-    setSelectedExampleIndex(index);
     setShowExampleMenu(false);
   };
 
@@ -63,13 +57,13 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
       if (text) {
         setFormData((prev) => ({
           ...prev,
-          job_text: text,
+          jobText: text,
         }));
         setPasteSuccess(true);
-        setTimeout(() => setPasteSuccess(false), 2000);
+        setTimeout(() => setPasteSuccess(false), 1500);
       }
-    } catch (err) {
-      console.warn('Clipboard read error or not permitted', err);
+    } catch {
+      // Clipboard access denied
     }
   };
 
@@ -79,107 +73,106 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
   };
 
   return (
-    <section className="relative pt-8 pb-12 sm:pt-12 sm:pb-16 border-b border-slate-800/80">
+    <section id="scanner" className="relative pt-12 pb-14 border-b border-zinc-200 dark:border-zinc-800">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        {/* 1. Hero with a one-line promise */}
-        <div className="text-center space-y-4 mb-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs sm:text-sm font-semibold tracking-wide">
-            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
-            Job Applicant Defense & Safety Scanner
+        {/* Editorial Hero */}
+        <div className="text-center space-y-3 mb-10 animate-text-reveal">
+          <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest flex items-center justify-center gap-2">
+            <span>Pre-Application Advisory Engine</span>
+            <span>·</span>
+            <span>Zero Fallback Invariants</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            Check any job posting <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-sky-300 to-emerald-400">before applying</span>.
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight [text-wrap:balance]">
+            Inspect any job posting before you apply.
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto font-normal">
-            Spot scam triggers, recruiter domain anomalies, upfront fee demands, and unsafe contact methods in seconds.
+          <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-xl mx-auto font-normal">
+            Detect suspicious recruiter email domains, upfront fee demands, and unmonitored chat channels in seconds.
           </p>
         </div>
 
-        {/* Global Error Banner (backend down / general validation) */}
+        {/* Global Error Banner */}
         {errorMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-start gap-3 shadow-lg shadow-rose-950/20 animate-in fade-in duration-200">
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <strong className="font-semibold block text-rose-200">Action Required:</strong>
+          <div className="mb-6 p-4 rounded-xl border border-zinc-900 bg-zinc-950 text-white dark:border-zinc-200 dark:bg-zinc-100 dark:text-zinc-950 flex items-start gap-3 animate-fade-in text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-semibold block mb-0.5">Validation Requirement:</strong>
               {errorMessage}
             </div>
           </div>
         )}
 
-        {/* 2. Form: job description, recruiter email, company name, salary + Analyze button */}
-        <form onSubmit={handleSubmit} className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-5 sm:p-7 shadow-2xl backdrop-blur-sm">
-          {/* Paste Box Header & Actions */}
+        {/* Main Analysis Form */}
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-sm transition-colors"
+        >
+          {/* Header & Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-            <label htmlFor="job_text" className="block text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-              <Briefcase className="w-4 h-4 text-indigo-400" />
-              <span>Job Description / Posting Text</span>
-              <span className="text-rose-400 text-xs font-bold">*Required</span>
-            </label>
+            <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 font-medium">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Job Description / Posting</span>
+              <span className="text-zinc-400">·</span>
+              <span className="text-zinc-500 text-[11px]">Required text</span>
+            </div>
 
             <div className="flex items-center gap-2">
-              {/* Quick Paste from clipboard */}
+              {/* Paste Button */}
               <button
                 type="button"
                 onClick={handlePasteClipboard}
-                className="text-xs px-2.5 py-1 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-300 border border-slate-600/60 flex items-center gap-1.5 transition-colors"
-                title="Paste directly from your clipboard"
+                className="text-xs px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5 transition-colors"
               >
                 {pasteSuccess ? (
                   <>
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400 font-medium">Pasted!</span>
+                    <Check className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100" />
+                    <span>Pasted</span>
                   </>
                 ) : (
                   <>
-                    <ClipboardPaste className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Paste Box</span>
+                    <ClipboardPaste className="w-3.5 h-3.5" />
+                    <span>Paste</span>
                   </>
                 )}
               </button>
 
-              {/* 3. “Try example” button */}
+              {/* Try Example */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowExampleMenu(!showExampleMenu)}
-                  className="text-xs px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-medium flex items-center gap-1.5 transition-colors"
+                  className="text-xs px-2.5 py-1 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium flex items-center gap-1.5 transition-colors"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>Try Example</span>
                 </button>
 
                 {showExampleMenu && (
-                  <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl z-50 p-2 space-y-1">
-                    <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                      Select Sample Scenario
+                  <div className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl z-50 p-2 space-y-1">
+                    <div className="px-2 py-1 text-[11px] font-mono uppercase text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
+                      Sample Scenarios
                     </div>
                     {EXAMPLE_JOBS.map((ex, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => handleApplyExample(idx)}
-                        className={`w-full text-left p-2 rounded-lg text-xs transition-colors flex flex-col ${
-                          selectedExampleIndex === idx
-                            ? 'bg-indigo-600/30 border border-indigo-500/50 text-indigo-200'
-                            : 'hover:bg-slate-800 text-slate-300'
-                        }`}
+                        className="w-full text-left p-2 rounded-lg text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex flex-col"
                       >
-                        <span className="font-semibold text-slate-100">{ex.title}</span>
-                        <span className="text-[11px] text-slate-400">{ex.subtitle}</span>
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">{ex.title}</span>
+                        <span className="text-[11px] text-zinc-500">{ex.subtitle}</span>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Reset / Clear Button */}
-              {(formData.job_text || formData.email || formData.company || formData.salary) && (
+              {/* Reset */}
+              {(formData.jobText || formData.email || formData.company || formData.salary) && (
                 <button
                   type="button"
                   onClick={onClear}
-                  className="text-xs px-2 py-1 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition-colors"
+                  className="p-1 rounded-lg text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                   title="Clear all fields"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -188,37 +181,33 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
             </div>
           </div>
 
-          {/* Job text area */}
+          {/* Text Area */}
           <div className="mb-4">
             <textarea
-              id="job_text"
-              name="job_text"
+              id="jobText"
+              name="jobText"
               rows={6}
-              value={formData.job_text}
-              onChange={(e) => handleInputChange('job_text', e.target.value)}
-              placeholder="Paste the full job description, email message, LinkedIn/Indeed posting, or WhatsApp message here..."
-              className={`w-full px-4 py-3 rounded-xl bg-slate-900/90 border text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all resize-y ${
-                fieldErrors.job_text
-                  ? 'border-rose-500 focus:ring-rose-500'
-                  : 'border-slate-700 focus:border-indigo-500'
+              value={formData.jobText || ''}
+              onChange={(e) => handleInputChange('jobText', e.target.value)}
+              placeholder="Paste full job posting, recruiter email body, LinkedIn message, or Telegram offer..."
+              className={`w-full px-4 py-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-1 text-xs sm:text-sm transition-all resize-y ${
+                fieldErrors.jobText
+                  ? 'border-zinc-900 dark:border-zinc-100 focus:ring-zinc-900'
+                  : 'border-zinc-200 dark:border-zinc-800 focus:border-zinc-400 dark:focus:border-zinc-600 focus:ring-zinc-400'
               }`}
             />
-            {fieldErrors.job_text && (
-              <p className="mt-1.5 text-xs text-rose-400 flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" />
-                {fieldErrors.job_text}
+            {fieldErrors.jobText && (
+              <p className="mt-1 text-xs text-zinc-900 dark:text-zinc-100 font-medium">
+                {fieldErrors.jobText}
               </p>
             )}
           </div>
 
-          {/* Additional fields grid: recruiter email, company name, salary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            {/* Recruiter Email */}
+          {/* Metadata Inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-slate-400" />
-                <span>Recruiter Email</span>
-                <span className="text-slate-500 text-[11px] font-normal">(optional)</span>
+              <label htmlFor="email" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Recruiter Email
               </label>
               <input
                 type="email"
@@ -226,27 +215,23 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
                 name="email"
                 value={formData.email || ''}
                 onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="e.g. hr@company.com"
-                className={`w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 text-xs transition-all ${
+                placeholder="recruiter@company.com"
+                className={`w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none text-xs transition-all ${
                   fieldErrors.email
-                    ? 'border-rose-500 focus:ring-rose-500'
-                    : 'border-slate-700 focus:ring-indigo-500 focus:border-indigo-500'
+                    ? 'border-zinc-900 dark:border-zinc-100'
+                    : 'border-zinc-200 dark:border-zinc-800 focus:border-zinc-400'
                 }`}
               />
               {fieldErrors.email && (
-                <p className="mt-1 text-[11px] text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
+                <p className="mt-1 text-[11px] text-zinc-900 dark:text-zinc-100 font-medium">
                   {fieldErrors.email}
                 </p>
               )}
             </div>
 
-            {/* Company Name */}
             <div>
-              <label htmlFor="company" className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-slate-400" />
-                <span>Company Name</span>
-                <span className="text-slate-500 text-[11px] font-normal">(optional)</span>
+              <label htmlFor="company" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Company Name
               </label>
               <input
                 type="text"
@@ -254,17 +239,14 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
                 name="company"
                 value={formData.company || ''}
                 onChange={(e) => handleInputChange('company', e.target.value)}
-                placeholder="e.g. Stripe, Infosys, Amazon"
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-xs transition-all"
+                placeholder="e.g. Stripe, Acme Corp"
+                className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 text-xs transition-all"
               />
             </div>
 
-            {/* Salary */}
             <div>
-              <label htmlFor="salary" className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                <span>Salary / Rate</span>
-                <span className="text-slate-500 text-[11px] font-normal">(number or blank)</span>
+              <label htmlFor="salary" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Salary / Pay
               </label>
               <input
                 type="text"
@@ -272,48 +254,41 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
                 name="salary"
                 value={formData.salary || ''}
                 onChange={(e) => handleInputChange('salary', e.target.value)}
-                placeholder="e.g. 75000"
-                className={`w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 text-xs transition-all ${
+                placeholder="e.g. 85000"
+                className={`w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none text-xs transition-all ${
                   fieldErrors.salary
-                    ? 'border-rose-500 focus:ring-rose-500'
-                    : 'border-slate-700 focus:ring-indigo-500 focus:border-indigo-500'
+                    ? 'border-zinc-900 dark:border-zinc-100'
+                    : 'border-zinc-200 dark:border-zinc-800 focus:border-zinc-400'
                 }`}
               />
               {fieldErrors.salary && (
-                <p className="mt-1 text-[11px] text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
+                <p className="mt-1 text-[11px] text-zinc-900 dark:text-zinc-100 font-medium">
                   {fieldErrors.salary}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Form Actions: Analyze button with loading spinner */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-700/60">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5 order-2 sm:order-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-              All submissions are checked and automatically logged in local checks history.
+          {/* Form Actions */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="text-xs text-zinc-500 flex items-center gap-2">
+              <span>Results are stored in local audit history</span>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-sm text-white shadow-xl flex items-center justify-center gap-2.5 transition-all order-1 sm:order-2 ${
-                isLoading
-                  ? 'bg-indigo-600/60 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] shadow-indigo-600/30'
+              className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-xs text-white dark:text-zinc-950 bg-zinc-950 dark:bg-zinc-100 hover:opacity-90 transition-all flex items-center justify-center gap-2 ${
+                isLoading ? 'opacity-70 cursor-not-allowed' : 'active:scale-[0.98]'
               }`}
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Analyzing Posting...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Evaluating Posting...</span>
                 </>
               ) : (
-                <>
-                  <Search className="w-4 h-4 text-white" />
-                  <span>Analyze Job Posting</span>
-                </>
+                <span>Analyze Job Posting</span>
               )}
             </button>
           </div>
