@@ -99,6 +99,7 @@ export const JobCheckOutputSchema = z.object({
   red_flags: z.array(z.string()), // wire compatibility
   advice: z.array(z.string()),
   factors: z.array(RiskFactorDetailSchema).optional(),
+  modelType: z.enum(['hybrid-gemini-3.8-flash', 'deterministic-nlp-rules', 'scikit-learn-tfidf']).default('hybrid-gemini-3.8-flash'),
   stage: z.enum(['staging', 'production']),
   evaluatedAt: z.string(),
 });
@@ -119,6 +120,46 @@ export interface JobAuditRecord {
   advice: string[];
   stage: AppStage;
   createdAt: string;
+}
+
+/**
+ * Research Benchmark Metrics
+ */
+export interface ModelBenchmark {
+  name: string;
+  architecture: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
+  rocAuc: number;
+  latencyMs: number;
+  sampleCount: number;
+}
+
+export interface ConfusionMatrix {
+  truePositive: number;
+  falsePositive: number;
+  trueNegative: number;
+  falseNegative: number;
+}
+
+export interface FeatureWeight {
+  feature: string;
+  weight: number;
+  category: string;
+}
+
+export interface ResearchDatasetMetrics {
+  models: ModelBenchmark[];
+  confusionMatrix: ConfusionMatrix;
+  featureWeights: FeatureWeight[];
+  datasetStats: {
+    totalSamples: number;
+    legitimateCount: number;
+    scamCount: number;
+    testRatio: number;
+  };
 }
 
 /**

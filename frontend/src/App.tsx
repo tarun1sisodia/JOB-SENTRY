@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { HeroAndForm } from './components/HeroAndForm';
 import { ResultCard } from './components/ResultCard';
+import { ResearchDashboard } from './components/ResearchDashboard';
 import { HowItWorks } from './components/HowItWorks';
 import { CommonScams } from './components/CommonScams';
 import { ScamHelpline } from './components/ScamHelpline';
@@ -132,6 +133,7 @@ export const App: React.FC = () => {
       redFlags: record.redFlags,
       red_flags: record.redFlags,
       advice: record.advice,
+      modelType: 'deterministic-nlp-rules',
       stage: record.stage,
       evaluatedAt: record.createdAt,
     });
@@ -171,6 +173,11 @@ export const App: React.FC = () => {
 
         {/* 4. Result card: colour-coded risk badge, score as progress bar, red flags, advice */}
         <ResultCard result={result} lastRecord={lastSavedRecord} />
+
+        {/* Interactive ML & DL Research Benchmark Dashboard */}
+        <div id="research">
+          <ResearchDashboard />
+        </div>
 
         {/* 5. “How it works” in 3 steps */}
         <HowItWorks />

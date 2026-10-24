@@ -1,6 +1,6 @@
-# JobSentry Multi-Service Architecture & Shared Contract Synchronization Plan
+# JobSentry UI/UX Modernization & Accessibility Plan
 
-Architectural blueprint to decouple JobSentry into dedicated `backend/`, `frontend/`, and `ml_service/` directories, with a root `/shared/` directory acting as the single source of truth. An automated synchronization script (`npm run sync:shared`) will mirror contracts into each service directory, providing unified TypeScript Zod schemas, Python Pydantic models, and JSON Schemas.
+A prioritized implementation plan to address all 14 UI/UX recommendations across high, medium, and low priority tiers, ensuring mobile responsiveness, accessible semantic risk color schemes, WCAG keyboard navigation, responsive history layouts, and clean plain-language copy.
 
 ---
 
@@ -8,124 +8,152 @@ Architectural blueprint to decouple JobSentry into dedicated `backend/`, `fronte
 
 > [!IMPORTANT]
 > The following decisions were confirmed during Phase 1 clarification:
-> - **Synchronization Mechanism**: Node.js script (`scripts/sync-shared.js`) runnable via `npm run sync:shared` and hooked into pre-dev / pre-build scripts.
-> - **Contract Formats Provided**:
->   - *TypeScript & Zod*: `contracts.ts` for Node.js backend and React frontend.
->   - *Python & Pydantic*: `models.py` for Python ML microservices.
->   - *JSON Schema*: `schema.json` for universal cross-language validation and testing tools.
-> - **Service Directory Structure**: Dedicated `backend/`, `frontend/`, and `ml_service/` directories with a root runner on port 3000 ensuring 100% compatibility with runtime container constraints.
+> - **Risk-Level Color Scheme**: Accessible high-contrast **Emerald Green** (Low Risk), **Amber Orange** (Medium Risk), and **Crimson Red** (High Risk), paired with explicit textual labels and distinct icons to ensure WCAG AA color-blind accessibility.
+> - **Developer Controls (Staging/Prod & Offline Test)**: Collapsed into a dedicated, discreet "Demo & Debug Settings" drawer/popover with plain-language explanations, keeping the top navigation clean and focused on end-user tasks.
+> - **Mobile History Layout**: Dynamic dual-view architecture: a responsive, touch-friendly card list on mobile viewports (`< 768px`) and a high-density data table on desktop viewports (`≥ 768px`).
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **The Problem**: Multi-language, multi-service architectures suffer from model drift, inconsistent casing (`camelCase` vs `snake_case`), conflicting validation rules, and duplicated type definitions.
-- **The Solution**: A Single Source of Truth (`/shared/`) at the repository root. Services never invent independent ad-hoc models. Instead, the sync script propagates validated, immutable contract artifacts into `backend/shared/`, `frontend/shared/`, and `ml_service/shared/`.
-- **Target Workflow**: Running `npm run sync:shared` distributes contract files across all folders, ensuring zero model drift and invariant type safety.
+- **Goal**: Elevate the user experience of JobSentry to production-grade quality by resolving mobile friction, enhancing visual clarity, complying with accessibility standards, and replacing developer-facing jargon with natural, user-friendly language.
+- **Key Beneficiaries**: Mobile applicants scanning postings on smartphones, users with screen readers or keyboard navigation needs, and presenters conducting live viva demonstrations.
 
 ---
 
-## 2. Directory & Component Architecture
+## 2. Detailed Fix Breakdown by Priority
+
+### High Priority Fixes
+
+#### 1. Accessible Risk-Level Visualization
+- **Low Risk**: Emerald Green (`text-emerald-600 dark:text-emerald-400`, `bg-emerald-50 dark:bg-emerald-950/40`, `border-emerald-200 dark:border-emerald-800`), `ShieldCheck` icon, text label "Low Risk".
+- **Medium Risk**: Amber Orange (`text-amber-600 dark:text-amber-400`, `bg-amber-50 dark:bg-amber-950/40`, `border-amber-200 dark:border-amber-800`), `AlertTriangle` icon, text label "Medium Risk".
+- **High Risk**: Crimson Red (`text-rose-600 dark:text-rose-400`, `bg-rose-50 dark:bg-rose-950/40`, `border-rose-200 dark:border-rose-800`), `ShieldAlert` icon, text label "High Risk".
+- **Progress Bar Alignment**: Score progress bar filled with the matching semantic color (Emerald, Amber, or Crimson) instead of pure monochrome.
+
+#### 2. Responsive Mobile Navigation
+- Add a mobile hamburger button (`aria-label="Open navigation menu"`) in `Navbar.tsx`.
+- Slide-out mobile drawer with touch targets $\ge 44\text{px}$ linking to:
+  - Scanner (`#scanner`)
+  - Research & ML (`#research`)
+  - Workflow (`#how-it-works`)
+  - Scam Patterns (`#common-scams`)
+  - Helpline 1930 (`#helpline`)
+  - Past Scans (`#history`)
+- Includes quick theme toggle and demo drawer toggle inside mobile view.
+
+#### 3. Full Accessibility & Keyboard Navigation
+- Add explicit `aria-label` attributes to all icon-only buttons (copy, clear, paste, theme toggle, mobile toggle, modal close).
+- Ensure all interactive elements feature visible focus rings: `focus-visible:ring-2 focus-visible:ring-zinc-950 dark:focus-visible:ring-zinc-100 focus-visible:outline-none`.
+- Set `role="region"` and `aria-live="polite"` on error alerts and score notifications.
+
+---
+
+### Medium Priority Fixes
+
+#### 4. Developer & Demo Controls Drawer
+- Remove prominent Prod/Staging and 503 test toggles from the top navigation bar.
+- Replace with a subtle "Demo Controls" button that opens an accessible dropdown/drawer containing:
+  - Environment Mode switcher (Production vs. Staging with factor inspection).
+  - Network Failure Simulation toggle (HTTP 503 resilience testing).
+  - Clear explanations of what each setting demonstrates.
+
+#### 5. History Empty States & Filter Recovery
+- **No Records State**: "No job postings analyzed yet. Scan a posting above or load a sample scenario to start tracking." + "Load Sample Scan" button.
+- **No Filter Matches State**: "No scans match the search filter \"[term]\". Try adjusting your search or risk level." + "Clear Search & Filter" button.
+
+#### 6. Date & Time Timestamps
+- Update timestamp formatting across the table and detail cards:
+  - Format: `Oct 23, 2026 · 10:45 AM` (`toLocaleDateString` + `toLocaleTimeString`).
+
+#### 7. Mobile History Cards vs. Desktop Table
+- **Mobile (`md:hidden`)**: Render list of cards displaying company, date/time, risk badge, score bar, job snippet, and "Inspect" button.
+- **Desktop (`hidden md:block`)**: Preserve the high-density tabular view with tabular numerals.
+
+#### 8. Dynamic Currency Display
+- Parse user salary input:
+  - If input already starts with a currency symbol (`$`, `₹`, `€`, `£`, `C$`, `A$`), display as entered.
+  - If input is pure numeric, display clean formatted number with a generic label (e.g. `85,000 / year` or `85,000`). Never hardcode `$` when unstated.
+
+#### 9. Enhanced Score Bar Visualization
+- Display score with percentage and contextual severity descriptor:
+  - High ($\ge 0.65$): Crimson progress bar with label `"Critical Risk Indicator (78%)"`.
+  - Medium ($0.35 - 0.64$): Amber progress bar with label `"Moderate Risk Indicator (52%)"`.
+  - Low ($< 0.35$): Emerald progress bar with label `"Low Risk Indicator (12%)"`.
+
+#### 10. Readability & Mobile Touch Target Ergonomics
+- Ensure all inputs, select buttons, and action buttons have minimum touch targets of $44\text{px}$ on mobile.
+- Set input text size to `16px` on mobile (`text-base sm:text-xs`) to prevent mobile Safari viewport zooming.
+- Improve spacing and padding inside form cards.
+
+---
+
+### Low Priority Fixes
+
+#### 11. Responsive Example Menu
+- Constrain example popup menu on mobile: `max-w-[calc(100vw-2rem)] w-80 right-0 sm:right-0` with scroll overflow prevention.
+
+#### 12. Copy Feedback Toast
+- Provide clear, accessible feedback (e.g., inline "Copied to clipboard!" notification with checkmark icon, reverting after 2 seconds) for report and paper copying.
+
+#### 13. Accessible History Detail Dialog
+- Add global keyboard listener for `Escape` key to close the dialog.
+- Trap focus within modal while open and return focus to the trigger button upon close.
+- Add `aria-labelledby` and `aria-describedby` attributes.
+
+#### 14. Plain, Professional Language (Anti-Jargon)
+- Replace developer terms with friendly consumer copy:
+  - *"Pre-Application Advisory Engine · Zero Fallback Invariants"* $\rightarrow$ *"Pre-Application Job Scam Scanner · Free & Advisory"*
+  - *"Audit Invariant Database · SQLite Schema: checks"* $\rightarrow$ *"Past Job Scan History"*
+  - *"Evaluation Result · Staging"* $\rightarrow$ *"Scan Result · Staging Demo"*
+  - *"Inspect Invariant Rules"* $\rightarrow$ *"Scan for Scam Signals"*
+
+---
+
+## 3. Technical Architecture & Component Impact
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   Root /shared/ (SSOT)                      │
-│  - contracts.ts   (Zod & TypeScript definitions)            │
-│  - models.py      (Pydantic Python models for ML)           │
-│  - schema.json    (Canonical JSON Schema)                   │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │                              │
-     (npm run sync:shared)          (npm run sync:shared)
-               ▼                              ▼
-┌──────────────────────────────┐┌──────────────────────────────┐
-│       /frontend/shared/      ││       /backend/shared/       │
-│  - contracts.ts              ││  - contracts.ts              │
-│  - schema.json               ││  - schema.json               │
-└──────────────┬───────────────┘└──────────────┬───────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐┌──────────────────────────────┐
-│          /frontend/          ││          /backend/           │
-│  - React 19 SPA              ││  - Express Controllers       │
-│  - Strict 3-Color UI         ││  - Risk Engine               │
-│  - Animated Grid Background  ││  - Audit Storage Layer       │
-└──────────────────────────────┘└──────────────────────────────┘
-               ▲                               ▲
-               └───────────────┬───────────────┘
+│                         Navbar.tsx                          │
+│  - Responsive Mobile Hamburger + Slide-out Drawer           │
+│  - Discreet "Demo Controls" Popover (Prod/Staging, 503)     │
+│  - Accessible aria-labels on Theme & Menu toggles           │
+└──────────────────────────────┬──────────────────────────────┘
                                │
-               ┌───────────────┴───────────────┐
-               │    /ml_service/shared/        │
-               │  - models.py                  │
-               │  - schema.json                │
-               │    /ml_service/               │
-               │  - service.py / main.py       │
-               └───────────────────────────────┘
+┌──────────────────────────────┴──────────────────────────────┐
+│                      HeroAndForm.tsx                        │
+│  - Plain-language header & responsive example popover       │
+│  - 44px touch targets & 16px mobile input font sizes        │
+│  - Flexible currency validator without hardcoded dollar     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────┴──────────────────────────────┐
+│                       ResultCard.tsx                        │
+│  - Accessible semantic risk badges (Emerald / Amber / Rose) │
+│  - Color-coordinated score progress bar with percentage     │
+│  - Inline copy notification toast                           │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────┴──────────────────────────────┐
+│                      HistoryTable.tsx                       │
+│  - Dual-layout: Mobile Cards (<768px) & Desktop Table       │
+│  - Accessible Dialog with Escape key & focus management     │
+│  - Contextual Empty States (No records vs No filter matches)│
+│  - Full date + time formatting                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Key Product & Engineering Decisions
+## 4. Verification Plan
 
-### 3.1 Single Source of Truth (`/shared/`)
-- All contract changes occur **exclusively** within root `/shared/`.
-- The synchronization script automatically distributes copies into:
-  - `frontend/shared/`
-  - `backend/shared/`
-  - `ml_service/shared/`
-- Generated subfolder files include a prominent auto-generated disclaimer comment warning developers not to edit them directly.
-
-### 3.2 Script Execution & Pre-Flight Hooks
-- `npm run sync:shared`: Triggers `node scripts/sync-shared.js`.
-- Configured in `package.json`:
-  ```json
-  "scripts": {
-    "sync:shared": "node scripts/sync-shared.js",
-    "predev": "npm run sync:shared",
-    "prebuild": "npm run sync:shared"
-  }
-  ```
-- Guarantees that neither dev servers nor production builds can ever execute with stale or desynchronized contracts.
-
-### 3.3 Preserving Port 3000 Runtime Invariants
-- AI Studio requires port 3000 on `0.0.0.0` for web targets.
-- The root runner `server.ts` will route:
-  - Backend API requests (`/api/*` and aliases `/analyze`, `/history`) into the controllers in `backend/`.
-  - Frontend static assets and Vite SPA middlewares into `frontend/`.
-- This provides modular separation of concerns while maintaining single-command dev and build reliability.
-
----
-
-## 4. Technical Specifications & File Matrix
-
-### 4.1 Root Shared Artifacts (`/shared/`)
-1. **`shared/contracts.ts`**:
-   - `JobCheckInputSchema` (Zod): Dual-casing validation for `jobText` / `job_text`, RFC 5322 email regex, numeric salary validation.
-   - `JobCheckOutputSchema` (Zod): `riskLevel` / `risk_level`, `score`, `redFlags` / `red_flags`, `advice`, `factors`, `stage`, `evaluatedAt`.
-   - TypeScript interfaces and normalization helpers.
-2. **`shared/models.py`**:
-   - Pydantic BaseModel definitions: `JobCheckInput`, `JobCheckOutput`, `RiskLevel` Enum, `RiskFactorDetail`.
-   - Supports both `snake_case` fields and `camelCase` aliases.
-3. **`shared/schema.json`**:
-   - Complete JSON Schema draft-07 representation for integration testing and external API validation.
-
-### 4.2 Synchronization Script (`scripts/sync-shared.js`)
-- Recursively inspects `/shared/`.
-- Copies appropriate contract files into `backend/shared/`, `frontend/shared/`, and `ml_service/shared/`.
-- Emits verification logs confirming checksum or copy status.
-
-### 4.3 Service Folders
-- **`backend/`**:
-  - `backend/shared/`: Mirrored contracts.
-  - `backend/controllers.ts`: Zero-fallback API handlers.
-  - `backend/riskEngine.ts`: Deterministic evaluation rules.
-  - `backend/storage.ts`: Check audit log database.
-- **`frontend/`**:
-  - `frontend/shared/`: Mirrored contracts.
-  - `frontend/src/`: React 19 components, animated grid canvas, 3-color strict theme, hooks.
-  - `frontend/index.html` & `frontend/index.css`.
-- **`ml_service/`**:
-  - `ml_service/shared/`: Mirrored Python Pydantic models.
-  - `ml_service/main.py`: Service entry point and dummy/future ML analyzer.
-
-### 4.4 Documentation Update
-- Update `ARCHITECTURE.md` to document the multi-service folder layout, synchronization protocol, and cross-language contract guarantees.
+1. **Compilation Check**: Run `compile_applet` to verify zero TypeScript errors.
+2. **Responsive Layout Verification**:
+   - Mobile viewport ($375\text{px} - 414\text{px}$): Verify hamburger drawer, example menu alignment, and mobile history cards.
+   - Tablet/Desktop viewport ($768\text{px} - 1440\text{px}$): Verify table layout, top bar links, and demo popover.
+3. **Accessibility & Keyboard Navigation**:
+   - Verify `Tab` and `Shift+Tab` navigation across all controls with visible focus rings.
+   - Verify `Escape` key closes the history detail dialog and example menu.
+   - Verify screen reader labels on icon-only buttons.
+4. **End-to-End Functional Test**:
+   - Execute sample scan, verify accessible risk badge, test copy feedback toast, verify history persistence with complete date/time.

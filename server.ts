@@ -6,6 +6,7 @@ import {
   analyzeJobController,
   getHistoryController,
   clearHistoryController,
+  getResearchMetricsController,
   getHealthController,
 } from './backend/controllers';
 
@@ -28,6 +29,7 @@ async function startServer() {
   app.get('/history', getHistoryController);
   app.delete('/api/history', clearHistoryController);
 
+  app.get('/api/research/metrics', getResearchMetricsController);
   app.get('/api/health', getHealthController);
 
   // Vite middleware in development vs static serving in production

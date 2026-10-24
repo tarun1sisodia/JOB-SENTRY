@@ -171,6 +171,7 @@ export function evaluateJobRisk(req: NormalizedJobRequest): JobCheckOutput {
     red_flags: redFlags,
     advice: Array.from(new Set(advice)),
     factors: req.stage === 'staging' ? factors : undefined,
+    modelType: 'deterministic-nlp-rules',
     stage: req.stage,
     evaluatedAt,
   };

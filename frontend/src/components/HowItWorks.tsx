@@ -9,20 +9,20 @@ export const HowItWorks: React.FC = () => {
     },
     {
       num: '02',
-      title: 'Inspect Invariant Rules',
-      desc: 'The engine parses domain authenticity, upfront monetary requests, untraceable chat channels, and compensation anomalies.',
+      title: 'Scan for Scam Patterns',
+      desc: 'The scanner inspects email domain legitimacy, payment or deposit demands, private chat apps, and unrealistic salary traps.',
     },
     {
       num: '03',
       title: 'Review Advisory Outcome',
-      desc: 'Receive an immediate risk level, flagged red flags, and concrete verification steps before contacting the recruiter.',
+      desc: 'Receive an immediate risk level rating, flagged red flags, and concrete verification steps before contacting the recruiter.',
     },
   ];
 
   return (
-    <section id="how-it-works" className="py-14 border-b border-zinc-200 dark:border-zinc-800">
+    <section id="how-it-works" className="py-12 sm:py-14 border-b border-zinc-200 dark:border-zinc-800">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-10">
+        <div className="text-center mb-8 sm:mb-10">
           <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-1">
             Standard Verification
           </div>
@@ -38,7 +38,7 @@ export const HowItWorks: React.FC = () => {
           {steps.map((step, idx) => (
             <div
               key={idx}
-              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 transition-all flex flex-col justify-between"
+              className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 transition-all flex flex-col justify-between shadow-xs"
             >
               <div>
                 <span className="text-2xl font-black font-mono text-zinc-400 dark:text-zinc-600 block mb-3">
