@@ -7,6 +7,7 @@ import {
   Check,
 } from 'lucide-react';
 import { ResearchDatasetMetrics } from '../../shared/contracts';
+import { API_BASE } from '../services/api';
 
 export const ResearchDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'benchmarks' | 'matrix' | 'weights' | 'paper'>('benchmarks');
@@ -15,7 +16,7 @@ export const ResearchDashboard: React.FC = () => {
   const [paperContent, setPaperContent] = useState<string>('');
 
   useEffect(() => {
-    fetch('/api/research/metrics')
+    fetch(`${API_BASE}/api/research/metrics`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -23,7 +24,7 @@ export const ResearchDashboard: React.FC = () => {
         }
       })
       .catch((err) => console.warn('Failed to load research metrics:', err));
-
+      
     fetch('/RESEARCH_PAPER.md')
       .then((res) => res.text())
       .then((text) => setPaperContent(text))

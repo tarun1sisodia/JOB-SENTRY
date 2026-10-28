@@ -1,9 +1,9 @@
 # Hybrid Deceptive Recruitment Detection: A Comparative Analysis of Classic Machine Learning, Attention Transformers, and Large Language Models
 
-**Authors:** Tarun Sisodia<sup>1</sup>, JobSentry Research Group<sup>2</sup>  
-**Affiliation:** Department of Computer Science & Cybersecurity  
+**Authors:** Tarun Kushwah, Sumant Sethi, Sakshi Baranawal
+**Affiliation:** School of Computer Application & Technology, Galgotias University 
 **Date:** October 2026  
-**Document Version:** 2.0.0 (Research Specification & Presentation Manual)  
+**Document Version:** 1.0.0 (Research Specification & Presentation Manual)  
 
 ---
 

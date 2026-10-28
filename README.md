@@ -54,3 +54,11 @@ Build for production:
 ```bash
 npm run build
 ```
+
+## Cloudflare & Render Deployment
+
+JobSentry supports decoupled production deployment:
+- **Frontend**: [Cloudflare Pages](https://pages.cloudflare.com/) (React 19 + Vite SPA)
+- **Backend**: [Render](https://render.com/) (Node.js Express API with Gemini 3.8 Flash Hybrid Engine)
+
+For full step-by-step instructions, see [`RENDER_DEPLOYMENT.md`](RENDER_DEPLOYMENT.md) and [`render.yaml`](render.yaml).

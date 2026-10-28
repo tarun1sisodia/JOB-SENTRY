@@ -7,6 +7,7 @@ import {
 } from '../../shared/contracts';
 
 const STORAGE_FALLBACK_KEY = 'jobsentry_checks_audit_v2';
+export const API_BASE = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/+$/, '');
 
 /**
  * Validate input using shared Zod schema
@@ -44,7 +45,7 @@ export async function analyzeJobAPI(
     throw new Error('Network connection failed: Express backend service is simulated offline (HTTP 503).');
   }
 
-  const response = await fetch('/api/analyze', {
+  const response = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -85,7 +86,7 @@ export async function analyzeJobAPI(
  */
 export async function fetchHistoryAPI(): Promise<JobAuditRecord[]> {
   try {
-    const res = await fetch('/api/history');
+    const res = await fetch(`${API_BASE}/api/history`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data.records)) {
@@ -104,7 +105,7 @@ export async function fetchHistoryAPI(): Promise<JobAuditRecord[]> {
  */
 export async function clearHistoryAPI(): Promise<void> {
   try {
-    await fetch('/api/history', { method: 'DELETE' });
+    await fetch(`${API_BASE}/api/history`, { method: 'DELETE' });
   } catch (err) {
     console.warn('Backend history delete failed:', err);
   }

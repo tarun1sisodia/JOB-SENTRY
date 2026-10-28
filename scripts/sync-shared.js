@@ -43,6 +43,18 @@ function syncSharedContracts() {
     }
   }
 
+  // Ensure public directory has RESEARCH_PAPER.md for CDN and static serving
+  const publicDir = path.join(ROOT_DIR, 'public');
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+  const rootPaperPath = path.join(ROOT_DIR, 'RESEARCH_PAPER.md');
+  const publicPaperPath = path.join(publicDir, 'RESEARCH_PAPER.md');
+  if (fs.existsSync(rootPaperPath)) {
+    fs.copyFileSync(rootPaperPath, publicPaperPath);
+    console.log('  ✓ Synced RESEARCH_PAPER.md -> public/RESEARCH_PAPER.md');
+  }
+
   console.log('[sync:shared] All shared contracts successfully synchronized across all services.');
 }
 

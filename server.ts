@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import {
   analyzeJobController,
@@ -16,7 +17,7 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-  const isProd = process.env.NODE_ENV === 'production';
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
 
   app.use(cors());
   app.use(express.json());
@@ -42,9 +43,26 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
+    const indexHtml = path.resolve(distPath, 'index.html');
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+    }
     app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(distPath, 'index.html'));
+      if (fs.existsSync(indexHtml)) {
+        res.sendFile(indexHtml);
+      } else {
+        res.json({
+          status: 'online',
+          service: 'JobSentry API Server (Render)',
+          environment: process.env.NODE_ENV || 'production',
+          endpoints: [
+            '/api/health',
+            '/api/analyze',
+            '/api/history',
+            '/api/research/metrics',
+          ],
+        });
+      }
     });
   }
 
