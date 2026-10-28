@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
@@ -47,7 +47,7 @@ async function startServer() {
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
     }
-    app.get('*', (_req, res) => {
+    app.get('*', (_req: Request, res: Response) => {
       if (fs.existsSync(indexHtml)) {
         res.sendFile(indexHtml);
       } else {
