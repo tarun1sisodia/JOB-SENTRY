@@ -41,7 +41,7 @@ If you prefer configuring manually in Render:
    - **Region**: Oregon (or closest to your audience)
    - **Build Command**:
      ```bash
-     npm install --include=dev && npm run build
+     npm install && npm run build:backend
      ```
    - **Start Command**:
      ```bash
