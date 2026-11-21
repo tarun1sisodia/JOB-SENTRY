@@ -11,3 +11,6 @@ node_modules/
 ml_service/data/
 ml_service/models/*.joblib
 *.joblib
+dist/
+*.tsbuildinfo
+.aistudio/   
