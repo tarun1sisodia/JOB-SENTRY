@@ -15,9 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from imblearn.over_sampling import SMOTE
-from scipy.sparse import csr_matrix, hstack
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
@@ -30,25 +29,20 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import GroupKFold, StratifiedKFold, train_test_split
-from sklearn.preprocessing import StandardScaler
+
+from preprocess import (
+    build_metadata,
+    clean_text,
+    join_text_columns,
+    make_sparse_features,
+    scale_metadata,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "data" / "DataSet.csv"
 REPORTS_DIR = BASE_DIR / "reports"
 MODELS_DIR = BASE_DIR / "models"
-TEXT_COLUMNS = ("title", "company_profile", "description", "requirements", "benefits")
-BOOLEAN_COLUMNS = ("telecommuting", "has_company_logo", "has_questions")
-FREE_EMAIL_DOMAINS = {
-    "gmail.com",
-    "hotmail.com",
-    "outlook.com",
-    "yahoo.com",
-    "aol.com",
-    "icloud.com",
-    "live.com",
-    "mail.com",
-}
 RECALL_FLOOR = 0.80
 RANDOM_STATE = 42
 
@@ -89,111 +83,6 @@ def convert_labels(values):
     return converted.astype("int8")
 
 
-def convert_boolean_column(values, column_name):
-    """Convert common true/false strings and numbers to numeric flags."""
-    value_map = {
-        "t": 1,
-        "true": 1,
-        "1": 1,
-        "1.0": 1,
-        "yes": 1,
-        "f": 0,
-        "false": 0,
-        "0": 0,
-        "0.0": 0,
-        "no": 0,
-    }
-    normalized = values.astype("string").str.strip().str.lower()
-    converted = normalized.map(value_map)
-    invalid = normalized.notna() & converted.isna()
-    if invalid.any():
-        unknown = sorted(normalized[invalid].unique().tolist())
-        raise ValueError(f"Unrecognized values in {column_name}: {unknown}")
-    return converted.astype("float32")
-
-
-def clean_text(value):
-    """Lowercase text, remove markup and noise, and drop English stopwords."""
-    text = re.sub(r"<[^>]*>", " ", str(value).lower())
-    text = re.sub(r"[^a-z0-9\s]", " ", text)
-    words = (word for word in text.split() if word not in ENGLISH_STOP_WORDS)
-    return " ".join(words)
-
-
-def join_text_columns(frame):
-    """Join the available job-posting text fields into one clean string."""
-    available_columns = [column for column in TEXT_COLUMNS if column in frame.columns]
-    if not available_columns:
-        raise ValueError(
-            "No job text columns found. Expected at least one of: "
-            + ", ".join(TEXT_COLUMNS)
-        )
-    filled = frame[available_columns].fillna("").astype(str)
-    return filled.agg(" ".join, axis=1).map(clean_text)
-
-
-def has_value(values):
-    """Return one when a source field contains a non-empty value."""
-    return values.notna() & values.astype("string").str.strip().ne("")
-
-
-def build_metadata(frame, cleaned_text):
-    """Build numeric job-posting features without using the target label."""
-    features = pd.DataFrame(index=frame.index)
-    features["has_company_profile"] = (
-        has_value(frame["company_profile"]).astype("int8")
-        if "company_profile" in frame
-        else 0
-    )
-    features["has_salary_range"] = (
-        has_value(frame["salary_range"]).astype("int8")
-        if "salary_range" in frame
-        else 0
-    )
-    features["has_department"] = (
-        has_value(frame["department"]).astype("int8")
-        if "department" in frame
-        else 0
-    )
-    features["text_length"] = cleaned_text.str.len().astype("float32")
-
-    email_columns = [column for column in frame if "email" in str(column).lower()]
-    url_columns = [
-        column
-        for column in frame
-        if any(part in str(column).lower() for part in ("url", "website", "web_site"))
-    ]
-    email_or_url_flag = pd.Series(False, index=frame.index)
-    for column in email_columns:
-        domains = (
-            frame[column]
-            .fillna("")
-            .astype(str)
-            .str.lower()
-            .str.extract(r"@([^>\s,;]+)", expand=False)
-        )
-        email_or_url_flag |= domains.isin(FREE_EMAIL_DOMAINS)
-    for column in url_columns:
-        email_or_url_flag |= has_value(frame[column])
-    if email_columns or url_columns:
-        features["has_free_email_or_url_flag"] = email_or_url_flag.astype("int8")
-
-    for column in BOOLEAN_COLUMNS:
-        if column in frame:
-            features[column] = convert_boolean_column(frame[column], column).fillna(0)
-    return features.astype("float32")
-
-
-def scale_metadata(train_metadata, other_metadata, scaler=None):
-    """Log and scale numeric columns using only the supplied training rows."""
-    train_values = np.log1p(train_metadata.to_numpy(dtype=np.float64))
-    other_values = np.log1p(other_metadata.to_numpy(dtype=np.float64))
-    fitted_scaler = scaler or StandardScaler()
-    scaled_train = fitted_scaler.fit_transform(train_values)
-    scaled_other = fitted_scaler.transform(other_values)
-    return scaled_train.astype(np.float32), scaled_other.astype(np.float32), fitted_scaler
-
-
 def build_feature_sets(text, metadata, fit_indices, other_indices):
     """Fit text and numeric transforms on the fit rows, then transform the rest."""
     vectorizer = TfidfVectorizer(max_features=20000, ngram_range=(1, 2))
@@ -202,8 +91,8 @@ def build_feature_sets(text, metadata, fit_indices, other_indices):
     fit_metadata, other_metadata, scaler = scale_metadata(
         metadata.iloc[fit_indices], metadata.iloc[other_indices]
     )
-    fit_all = hstack([fit_text, csr_matrix(fit_metadata)], format="csr")
-    other_all = hstack([other_text, csr_matrix(other_metadata)], format="csr")
+    fit_all = make_sparse_features(fit_text, fit_metadata)
+    other_all = make_sparse_features(other_text, other_metadata)
     return fit_text, other_text, fit_all, other_all, vectorizer, scaler
 
 
@@ -749,9 +638,7 @@ def main():
     scaled_test_metadata = final_scaler.transform(
         np.log1p(test_metadata.to_numpy(dtype=np.float64))
     ).astype(np.float32)
-    final_test_all = hstack(
-        [final_test_text, csr_matrix(scaled_test_metadata)], format="csr"
-    )
+    final_test_all = make_sparse_features(final_test_text, scaled_test_metadata)
     final_train_all_text_only = final_train_text
     final_test_all_text_only = final_test_text
 

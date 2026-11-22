@@ -1,19 +1,48 @@
-import { Request, Response } from 'express';
+import { Request, Response as ExpressResponse } from 'express';
 import {
   JobCheckInputSchema,
   normalizeJobRequest,
   JobCheckOutputSchema,
   ApiErrorResponse,
   ResearchDatasetMetrics,
+  NormalizedJobRequest,
+  JobCheckOutput,
 } from './shared/contracts';
-import { analyzeJobWithGemini } from './geminiService';
+import { evaluateJobRisk } from './riskEngine';
 import { auditStorage } from './storage';
+
+const ML_SERVICE_TIMEOUT_MS = 5_000;
+
+function getMlServiceUrl(): string {
+  return (process.env.ML_SERVICE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+}
+
+async function requestMlPrediction(
+  normalized: NormalizedJobRequest
+): Promise<globalThis.Response> {
+  return fetch(`${getMlServiceUrl()}/predict`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(normalized),
+    signal: AbortSignal.timeout(ML_SERVICE_TIMEOUT_MS),
+  });
+}
+
+function isMlServiceUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === 'AbortError' ||
+    error.name === 'TimeoutError' ||
+    error instanceof TypeError ||
+    error.message.startsWith('ML service returned HTTP 5')
+  );
+}
 
 /**
  * Controller: POST /api/analyze (and legacy POST /analyze)
- * Hybrid Gemini 3.8 Flash AI + Feature Rule Engine
+ * ML service inference with a deterministic local fallback
  */
-export async function analyzeJobController(req: Request, res: Response) {
+export async function analyzeJobController(req: Request, res: ExpressResponse) {
   try {
     // 1. Ingress Validation (Zero Fallback)
     const parseResult = JobCheckInputSchema.safeParse(req.body);
@@ -39,8 +68,74 @@ export async function analyzeJobController(req: Request, res: Response) {
     // 2. Canonical Normalization
     const normalized = normalizeJobRequest(parseResult.data);
 
-    // 3. Hybrid AI Inference (Gemini 3.8 Flash + Rules)
-    const evaluation = await analyzeJobWithGemini(normalized);
+    // 3. Ask the ML service, and use local rules only when it is unavailable.
+    let evaluation: JobCheckOutput;
+    try {
+      const mlResponse = await requestMlPrediction(normalized);
+      if (mlResponse.status >= 500) {
+        throw new Error(`ML service returned HTTP ${mlResponse.status}`);
+      }
+      if (!mlResponse.ok) {
+        return res.status(502).json({
+          error: {
+            code: 'ML_SERVICE_REQUEST_FAILED',
+            message: `ML service rejected the request with HTTP ${mlResponse.status}.`,
+          },
+          stage: normalized.stage,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const rawMlResponse = await mlResponse.text();
+      let mlPayload: unknown;
+      try {
+        mlPayload = JSON.parse(rawMlResponse);
+      } catch {
+        console.error(
+          '[CRITICAL] ML service returned invalid JSON:',
+          rawMlResponse
+        );
+        return res.status(502).json({
+          error: {
+            code: 'ML_CONTRACT_EGRESS_VIOLATION',
+            message: 'ML service returned a payload incompatible with the shared contract.',
+          },
+          stage: normalized.stage,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const mlEgressCheck = JobCheckOutputSchema.safeParse(mlPayload);
+      if (!mlEgressCheck.success) {
+        console.error('[CRITICAL] ML service contract breach:', {
+          issues: mlEgressCheck.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
+            expected: 'expected' in issue ? issue.expected : undefined,
+            received: 'input' in issue ? issue.input : undefined,
+          })),
+          rawResponse: rawMlResponse,
+        });
+        return res.status(502).json({
+          error: {
+            code: 'ML_CONTRACT_EGRESS_VIOLATION',
+            message: 'ML service returned a payload incompatible with the shared contract.',
+          },
+          stage: normalized.stage,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      evaluation = mlEgressCheck.data;
+    } catch (error: unknown) {
+      if (!isMlServiceUnavailable(error)) {
+        throw error;
+      }
+      console.warn(
+        '[ML Service] Prediction unavailable; using deterministic risk engine:',
+        error
+      );
+      evaluation = evaluateJobRisk(normalized);
+    }
 
     // 4. Egress Validation (Zero Fallback Guarantee)
     const egressCheck = JobCheckOutputSchema.safeParse(evaluation);
@@ -81,7 +176,7 @@ export async function analyzeJobController(req: Request, res: Response) {
 /**
  * Controller: GET /api/history (and legacy GET /history)
  */
-export async function getHistoryController(req: Request, res: Response) {
+export async function getHistoryController(req: Request, res: ExpressResponse) {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
     const records = auditStorage.listChecks(limit);
@@ -105,7 +200,7 @@ export async function getHistoryController(req: Request, res: Response) {
 /**
  * Controller: DELETE /api/history
  */
-export async function clearHistoryController(_req: Request, res: Response) {
+export async function clearHistoryController(_req: Request, res: ExpressResponse) {
   try {
     auditStorage.clear();
     return res.status(200).json({
@@ -128,7 +223,7 @@ export async function clearHistoryController(_req: Request, res: Response) {
  * Controller: GET /api/research/metrics
  * Supplies academic empirical benchmarks and model evaluation metrics for research presentation
  */
-export async function getResearchMetricsController(_req: Request, res: Response) {
+export async function getResearchMetricsController(_req: Request, res: ExpressResponse) {
   const metrics: ResearchDatasetMetrics = {
     models: [
       {
@@ -199,7 +294,7 @@ export async function getResearchMetricsController(_req: Request, res: Response)
 /**
  * Controller: GET /api/health
  */
-export async function getHealthController(_req: Request, res: Response) {
+export async function getHealthController(_req: Request, res: ExpressResponse) {
   return res.status(200).json({
     status: 'healthy',
     service: 'JobSentry Backend Service',
