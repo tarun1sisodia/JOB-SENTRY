@@ -22,7 +22,7 @@ SCAM_POSTINGS = [
     "Work from home today. Send a laptop deposit before we ship your equipment.",
     "Immediate hiring on Telegram. Pay a processing fee to reserve your position.",
     "Earn thousands weekly with no experience. Contact our recruiter on WhatsApp.",
-    "Remote data-entry role. Pay an upfront fee for training materials before starting.",
+    "Remote data-entry role. Pay a training fee before starting.",
     "We will hire instantly. Send a security deposit and message us on Telegram.",
 ]
 
@@ -49,10 +49,55 @@ class PredictionSmokeTests(unittest.TestCase):
                 self.assertLessEqual(result.score, 1)
                 self.assertTrue(
                     any(
-                        "mentioned" in flag or "charge" in flag
+                        flag
+                        in {
+                            "Directs recruitment communication to private chat apps",
+                            "Demands upfront financial transaction (laptop deposit)",
+                            "Demands upfront financial transaction (processing fee)",
+                            "Demands upfront financial transaction (training fee)",
+                            "Demands upfront financial transaction (security deposit)",
+                        }
                         for flag in result.red_flags
                     )
                 )
+
+    def test_free_email_scam_posting_has_backend_rule_flags(self):
+        """A free recruiter email and scam phrases retain the fallback flags."""
+        request = JobCheckInput(
+            job_text=(
+                "Entry level role with no experience required. "
+                "Pay a security deposit and contact the recruiter through wa.me."
+            ),
+            company="Confidential",
+            email="recruiter@gmail.com",
+            salary="350000",
+            stage="staging",
+        )
+
+        result = predict_job_risk(request)
+
+        self.assertIn(
+            "Recruiter uses free public email provider instead of corporate domain",
+            result.red_flags,
+        )
+        self.assertIn(
+            "Demands upfront financial transaction (security deposit)",
+            result.red_flags,
+        )
+        self.assertIn(
+            "Directs recruitment communication to private chat apps",
+            result.red_flags,
+        )
+        self.assertIn("Company identity is masked or undisclosed", result.red_flags)
+        self.assertIn(
+            "Compensation offered is disproportionate to role requirements",
+            result.red_flags,
+        )
+        factor_ids = {factor.id for factor in result.factors or []}
+        self.assertIn("EMAIL_FREE_DOMAIN", factor_ids)
+        self.assertIn("PAYMENT_UPFRONT_DEMAND", factor_ids)
+        self.assertIn("COMMUNICATION_PRIVATE_CHAT", factor_ids)
+        self.assertIn("ENTITY_UNDISCLOSED", factor_ids)
 
     def test_threshold_artifacts_are_used_when_model_is_available(self):
         """Confirm a loaded threshold is valid and model flags are coherent."""

@@ -27,6 +27,46 @@ from shared.models import (
 
 
 LOGGER = logging.getLogger(__name__)
+FREE_EMAIL_PROVIDERS = (
+    "gmail.com",
+    "yahoo.com",
+    "hotmail.com",
+    "outlook.com",
+    "rediffmail.com",
+    "proton.me",
+    "protonmail.com",
+    "aol.com",
+    "zoho.com",
+    "mail.com",
+    "yandex.com",
+)
+PAYMENT_KEYWORDS = (
+    "registration fee",
+    "processing fee",
+    "security deposit",
+    "training fee",
+    "laptop deposit",
+    "equipment fee",
+    "refundable deposit",
+    "activation fee",
+)
+MESSAGING_KEYWORDS = ("telegram", "whatsapp", "wa.me", "signal", "t.me/")
+TASK_KEYWORDS = (
+    "like youtube",
+    "like videos",
+    "rate hotels",
+    "review products",
+    "daily payout",
+    "earn $500/day",
+    "daily earning",
+)
+CRYPTO_KEYWORDS = (
+    "usdt",
+    "crypto",
+    "bitcoin",
+    "cashiers check",
+    "wire transfer to vendor",
+)
 MODEL_DIR = SERVICE_DIR / "models"
 REPORTS_DIR = SERVICE_DIR / "reports"
 MODEL_PATH = MODEL_DIR / "model.joblib"
@@ -129,50 +169,173 @@ def safe_matched_terms(text: str, company: str | None) -> list[str]:
 
 
 def assess_keyword_rules(
-    text: str, company: str | None
+    text: str,
+    company: str | None,
+    email: str | None = None,
+    salary: str | None = None,
 ) -> tuple[float, list[str], list[str], list[RiskFactorDetail]]:
-    """Keep the original scam triggers and return generic, privacy-safe flags."""
+    """Apply the same deterministic indicators, weights, and wording as backend."""
     normalized_text = text.lower()
-    has_channel_trigger = "telegram" in normalized_text or "whatsapp" in normalized_text
-    has_payment_trigger = "fee" in normalized_text or "deposit" in normalized_text
-    rule_score = min(
-        0.98,
-        0.12 + (0.35 if has_channel_trigger else 0) + (0.45 if has_payment_trigger else 0),
+    normalized_email = (email or "").lower().strip()
+    normalized_company = (company or "").strip()
+    salary_num = (
+        float(re.sub(r"[\$,,\s]", "", salary))
+        if salary
+        else None
     )
+
     red_flags = []
     advice = []
     factors = []
+    rule_score = 0.12
 
-    if has_channel_trigger:
-        red_flags.append("Unverified messaging channel mentioned in the posting")
-        advice.append(
-            "Verify recruiter contact details through the company's official channels"
+    email_domain = normalized_email.split("@")[1] if "@" in normalized_email else None
+    if email_domain and email_domain in FREE_EMAIL_PROVIDERS:
+        red_flags.append(
+            "Recruiter uses free public email provider instead of corporate domain"
         )
+        advice.append("Verify identity directly through the verified corporate website")
         factors.append(
             RiskFactorDetail(
-                id="ML_CHAT_ISOLATION",
+                id="EMAIL_FREE_DOMAIN",
                 severity=RiskSeverity.HIGH,
-                category="Channel",
-                description="The posting mentions a private messaging channel",
+                category="Identity",
+                description=f"Public email host detected: {email_domain}",
             )
         )
+        rule_score += 0.35
 
-    if has_payment_trigger:
-        red_flags.append("Possible upfront payment or equipment charge")
-        advice.append("Do not pay fees or deposits to apply for or start a job")
+    matched_payment = next(
+        (keyword for keyword in PAYMENT_KEYWORDS if keyword in normalized_text),
+        None,
+    )
+    if matched_payment:
+        red_flags.append(
+            f"Demands upfront financial transaction ({matched_payment})"
+        )
+        advice.append("Never transfer money or pay fees for any job opportunity")
         factors.append(
             RiskFactorDetail(
-                id="ML_FEE_SOLICITATION",
+                id="PAYMENT_UPFRONT_DEMAND",
                 severity=RiskSeverity.CRITICAL,
                 category="Financial",
-                description="The posting may request money before work begins",
+                description=f'Detected upfront fee keyword: "{matched_payment}"',
             )
         )
+        rule_score += 0.45
+
+    matched_messaging = next(
+        (keyword for keyword in MESSAGING_KEYWORDS if keyword in normalized_text),
+        None,
+    )
+    if matched_messaging:
+        red_flags.append("Directs recruitment communication to private chat apps")
+        advice.append(
+            "Avoid employment processes conducted exclusively through chat channels"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="COMMUNICATION_PRIVATE_CHAT",
+                severity=RiskSeverity.HIGH,
+                category="Channel",
+                description=(
+                    f'Detected unmonitored communication tool: "{matched_messaging}"'
+                ),
+            )
+        )
+        rule_score += 0.3
+
+    matched_task = next(
+        (keyword for keyword in TASK_KEYWORDS if keyword in normalized_text),
+        None,
+    )
+    if matched_task or (
+        "no experience" in normalized_text and "high pay" in normalized_text
+    ):
+        red_flags.append(
+            "Promises inflated daily earnings for trivial online tasks"
+        )
+        advice.append(
+            "Task rating schemes frequently transition into crypto deposit traps"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="TASK_SCAM_MARKER",
+                severity=RiskSeverity.HIGH,
+                category="Structure",
+                description=(
+                    "Pattern matches standard click-farm and rating scam operations"
+                ),
+            )
+        )
+        rule_score += 0.3
+
+    matched_crypto = next(
+        (keyword for keyword in CRYPTO_KEYWORDS if keyword in normalized_text),
+        None,
+    )
+    if matched_crypto:
+        red_flags.append(
+            "Instructs cryptocurrency transfers or third-party cheque cashing"
+        )
+        advice.append(
+            "Cheque overpayment and crypto routing are common money mule schemes"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="FINANCIAL_LAUNDERING_RISK",
+                severity=RiskSeverity.CRITICAL,
+                category="Banking",
+                description=(
+                    "Contains non-standard settlement mechanism: "
+                    f'"{matched_crypto}"'
+                ),
+            )
+        )
+        rule_score += 0.4
+
+    if (
+        not normalized_company
+        or normalized_company.lower() in ("confidential", "hiring agency")
+    ):
+        red_flags.append("Company identity is masked or undisclosed")
+        advice.append(
+            "Demand registered business entity details and physical address verification"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="ENTITY_UNDISCLOSED",
+                severity=RiskSeverity.MEDIUM,
+                category="Governance",
+                description="Absence of explicit corporate identity",
+            )
+        )
+        rule_score += 0.15
+
+    if salary_num and salary_num > 300000 and (
+        "entry level" in normalized_text or "no experience" in normalized_text
+    ):
+        red_flags.append(
+            "Compensation offered is disproportionate to role requirements"
+        )
+        rule_score += 0.2
+
+    rule_score = min(0.98, max(0.08, round(rule_score, 2)))
 
     # Echo posting terms only when the explainability list explicitly allows them.
     matched_terms = safe_matched_terms(text, company)
     if matched_terms:
         red_flags.append(f"Approved warning terms found: {', '.join(matched_terms)}")
+
+    if red_flags:
+        advice.append(
+            "Never send identity scans or banking credentials before signing formal verified agreements"
+        )
+    else:
+        red_flags.append("No primary high-risk triggers detected in text")
+        advice.append(
+            "Verify recruiter on LinkedIn and confirm posting on official careers site"
+        )
 
     return rule_score, red_flags, advice, factors
 
@@ -181,7 +344,7 @@ def predict_job_risk(payload: JobCheckInput) -> JobCheckOutput:
     """Use trained probabilities when available, with keyword rules as support."""
     text = payload.canonical_job_text
     rule_score, red_flags, advice, factors = assess_keyword_rules(
-        text, payload.company
+        text, payload.company, payload.email, payload.salary
     )
 
     if ARTIFACTS.available:
