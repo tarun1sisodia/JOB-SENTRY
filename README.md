@@ -55,6 +55,21 @@ Build for production:
 npm run build
 ```
 
+## Training the ML Service
+
+Choose which ML training pipeline to run:
+
+```bash
+python ml_service/train.py
+python ml_service/train.py --pipeline research
+python ml_service/train.py --pipeline deployed
+python ml_service/train.py --pipeline all
+```
+
+The default is `deployed`. The `research` option regenerates the research model
+and reports; `deployed` trains the text-only deployment model in its separate
+artifact directory; `all` runs both pipelines.
+
 ## Cloudflare & Render Deployment
 
 JobSentry supports decoupled production deployment:

@@ -1,5 +1,13 @@
-"""Train, select, and evaluate JobSentry's job-fraud classifiers."""
+"""Train JobSentry models.
 
+Usage:
+    python ml_service/train.py [--pipeline research|deployed|all]
+
+The default pipeline is ``deployed``. ``research`` reproduces the research
+training and reports, while ``all`` runs research followed by deployed training.
+"""
+
+import argparse
 import json
 import re
 import sys
@@ -386,7 +394,7 @@ def save_explainability_words(
     )
 
 
-def main():
+def train_research_pipeline():
     """Prepare data, select on validation, and evaluate the test set at the end."""
     if not DATA_PATH.is_file():
         raise FileNotFoundError(f"Dataset not found: {DATA_PATH}")
@@ -758,6 +766,158 @@ def main():
         REPORTS_DIR,
     )
     print(f"\nSaved model, vectorizer, scaler, and threshold under {MODELS_DIR}")
+
+
+def train_deployed_text_only():
+    """Train and evaluate the isolated text-only deployment model."""
+    deployed_model_dir = MODELS_DIR / "deployed"
+    deployed_model_dir.mkdir(parents=True, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Read the same dataset and apply the same duplicate removal as research.
+    data = pd.read_csv(DATA_PATH)
+    label_column = find_label_column(data.columns)
+    labels = convert_labels(data[label_column])
+    data = data.drop(columns=["in_balanced_dataset"], errors="ignore")
+    if {"title", "description"}.issubset(data.columns):
+        keep = ~data.duplicated(subset=["title", "description"], keep="first")
+        data = data.loc[keep].copy()
+        labels = labels.loc[keep].copy()
+
+    # Build only the joined, cleaned posting text; no metadata is added.
+    text = join_text_columns(data).reset_index(drop=True)
+    labels = labels.reset_index(drop=True)
+
+    # Reuse the research model's stratified outer split and random seed.
+    train_indices, test_indices = train_test_split(
+        np.arange(len(data)),
+        test_size=0.2,
+        random_state=RANDOM_STATE,
+        stratify=labels,
+    )
+    train_text = text.iloc[train_indices].reset_index(drop=True)
+    train_labels = labels.iloc[train_indices].reset_index(drop=True)
+    test_text = text.iloc[test_indices].reset_index(drop=True)
+    test_labels = labels.iloc[test_indices].reset_index(drop=True)
+
+    # Carve a stratified validation set from training with the research split seed.
+    fit_positions, validation_positions = train_test_split(
+        np.arange(len(train_labels)),
+        test_size=0.2,
+        random_state=RANDOM_STATE,
+        stratify=train_labels,
+    )
+    fit_positions = np.asarray(fit_positions)
+    validation_positions = np.asarray(validation_positions)
+    fit_labels = train_labels.iloc[fit_positions]
+    validation_labels = train_labels.iloc[validation_positions]
+
+    # Fit the 1- and 2-gram vocabulary on the training portion only.
+    vectorizer = TfidfVectorizer(max_features=20000, ngram_range=(1, 2))
+    fit_features = vectorizer.fit_transform(train_text.iloc[fit_positions])
+    validation_features = vectorizer.transform(
+        train_text.iloc[validation_positions]
+    )
+
+    # Balance only the training portion, then fit the fixed Logistic Regression.
+    minority_count = int(fit_labels.value_counts().min())
+    if minority_count < 2:
+        raise ValueError("SMOTE needs at least two examples of each training class.")
+    sampler = SMOTE(
+        random_state=RANDOM_STATE,
+        k_neighbors=min(5, minority_count - 1),
+    )
+    balanced_features, balanced_labels = sampler.fit_resample(
+        fit_features, fit_labels
+    )
+    model = LogisticRegression(
+        C=1.0,
+        max_iter=3000,
+        random_state=RANDOM_STATE,
+    )
+    model.fit(balanced_features, balanced_labels)
+
+    # Select the threshold from validation only, using the existing recall rule.
+    validation_scores = model.predict_proba(validation_features)[:, 1]
+    threshold, validation_metrics = choose_threshold(
+        validation_labels,
+        validation_scores,
+        recall_floor=RECALL_FLOOR,
+    )
+    print(
+        "\nDeployed text-only validation selection: "
+        f"threshold={threshold:.6f}, "
+        f"precision={validation_metrics['precision']:.4f}, "
+        f"recall={validation_metrics['recall']:.4f}, "
+        f"F1={validation_metrics['f1']:.4f}"
+    )
+
+    # Evaluate the held-out test rows only after the threshold is fixed.
+    test_features = vectorizer.transform(test_text)
+    test_scores = model.predict_proba(test_features)[:, 1]
+    result_rows = []
+    for threshold_name, selected_threshold in (
+        ("validation_tuned", threshold),
+        ("default_0.5", 0.5),
+    ):
+        row = {
+            "model": "deployed_text_only",
+            "threshold_name": threshold_name,
+            "threshold": selected_threshold,
+        }
+        row.update(metrics_at_threshold(test_labels, test_scores, selected_threshold))
+        predictions = (test_scores >= selected_threshold).astype("int8")
+        tn, fp, fn, tp = confusion_matrix(
+            test_labels, predictions, labels=[0, 1]
+        ).ravel()
+        row.update({"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)})
+        result_rows.append(row)
+
+    deployed_metrics = pd.DataFrame(result_rows)
+    deployed_metrics.to_csv(REPORTS_DIR / "deployed_metrics.csv", index=False)
+    print("\nDeployed text-only test metrics:")
+    print(
+        deployed_metrics.to_string(
+            index=False,
+            float_format=lambda value: f"{value:.4f}",
+        )
+    )
+
+    # Write only the separate deployment directory and its dedicated report.
+    joblib.dump(model, deployed_model_dir / "model.joblib")
+    joblib.dump(vectorizer, deployed_model_dir / "vectorizer.joblib")
+    with (deployed_model_dir / "threshold.json").open(
+        "w", encoding="utf-8"
+    ) as threshold_file:
+        json.dump(
+            {
+                "selected_config": "deployed_text_only",
+                "threshold_recall_at_least_0.80": threshold,
+                "recall_floor": RECALL_FLOOR,
+            },
+            threshold_file,
+            indent=2,
+        )
+    print(f"\nSaved deployed text-only artifacts under {deployed_model_dir}")
+
+
+def main():
+    """Run the selected training pipeline or pipelines."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--pipeline",
+        choices=("research", "deployed", "all"),
+        default="deployed",
+        help="Training pipeline to run (default: deployed).",
+    )
+    args = parser.parse_args()
+
+    if not DATA_PATH.is_file():
+        raise FileNotFoundError(f"Dataset not found: {DATA_PATH}")
+    if args.pipeline in ("research", "all"):
+        train_research_pipeline()
+    if args.pipeline in ("deployed", "all"):
+        train_deployed_text_only()
 
 
 if __name__ == "__main__":
