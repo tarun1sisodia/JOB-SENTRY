@@ -43,8 +43,8 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, lastRecord }) =>
         'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700/80',
       barColor: 'bg-emerald-600 dark:bg-emerald-400',
       icon: ShieldCheck,
-      headline: 'Posting appears legitimate with minimal scam indicators',
-      descriptor: 'Safe & Verified Signals Detected',
+      headline: 'No strong risk indicators were detected. Verify the offer independently.',
+      descriptor: 'Fewer Risk Indicators Found',
     },
     Medium: {
       label: 'Medium Risk',
@@ -61,8 +61,8 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, lastRecord }) =>
         'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700/80',
       barColor: 'bg-rose-600 dark:bg-rose-400',
       icon: ShieldAlert,
-      headline: 'Multiple critical scam patterns detected. Do not transfer funds or sensitive data',
-      descriptor: 'Critical Scam Alert · Strong Danger',
+      headline: 'Elevated risk indicators were detected. Do not send money or sensitive data before verification.',
+      descriptor: 'Elevated Risk Indicators',
     },
   };
 
@@ -120,7 +120,7 @@ Advisory Notice: This is an advisory risk indicator, not proof of fraud.`;
               <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono mb-1">
                 <span>Assessment Outcome</span>
                 <span>·</span>
-                <span className="capitalize">{result.stage === 'staging' ? 'Staging Demo' : 'Live Analysis'}</span>
+                <span className="capitalize">{result.stage === 'staging' ? 'Diagnostics' : 'Standard Check'}</span>
                 {lastRecord && (
                   <>
                     <span>·</span>

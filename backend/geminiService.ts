@@ -24,8 +24,7 @@ function getGeminiClient(): GoogleGenAI | null {
 }
 
 /**
- * Server-Side Gemini 3.8 Flash AI Model Evaluation
- * Combines Deep LLM Reasoning with Deterministic Feature Rule Extraction
+ * Optional Gemini-backed assessment with deterministic rules as fallback.
  */
 export async function analyzeJobWithGemini(
   req: NormalizedJobRequest
@@ -35,7 +34,7 @@ export async function analyzeJobWithGemini(
   // Baseline rule analysis for hybrid ensemble
   const ruleResult = evaluateRules(req);
 
-  // If Gemini API Key is not set in environment, return verified rule evaluation
+  // If no API key is configured, return the deterministic rule assessment.
   if (!ai) {
     return {
       ...ruleResult,

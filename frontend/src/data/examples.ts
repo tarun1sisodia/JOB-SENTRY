@@ -50,7 +50,7 @@ At Stripe, we are building economic infrastructure for the internet. As a Senior
 Responsibilities:
 - Build high-performance React and TypeScript client architectures
 - Optimize CI/CD bundle sizes, Core Web Vitals, and browser runtime performance
-- Partner with security, accessibility, and design teams to establish enterprise standards
+- Partner with security, accessibility, and design teams to establish organizational standards
 
 Qualifications:
 - 5+ years building and deploying large-scale production web applications

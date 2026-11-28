@@ -1,10 +1,11 @@
 import { Request, Response as ExpressResponse } from 'express';
+import { readFile } from 'node:fs/promises';
 import {
   JobCheckInputSchema,
   normalizeJobRequest,
   JobCheckOutputSchema,
   ApiErrorResponse,
-  ResearchDatasetMetrics,
+  ResearchMetricsExport,
   NormalizedJobRequest,
   JobCheckOutput,
 } from './shared/contracts';
@@ -224,71 +225,20 @@ export async function clearHistoryController(_req: Request, res: ExpressResponse
  * Supplies academic empirical benchmarks and model evaluation metrics for research presentation
  */
 export async function getResearchMetricsController(_req: Request, res: ExpressResponse) {
-  const metrics: ResearchDatasetMetrics = {
-    models: [
-      {
-        name: 'Gemini 3.8 Flash (Hybrid)',
-        architecture: 'Multimodal LLM + Deterministic Rules',
-        accuracy: 0.964,
-        precision: 0.958,
-        recall: 0.971,
-        f1Score: 0.964,
-        rocAuc: 0.988,
-        latencyMs: 380,
-        sampleCount: 2500,
-      },
-      {
-        name: 'BERT Fine-Tuned Transformer',
-        architecture: 'Bidirectional Self-Attention (110M params)',
-        accuracy: 0.938,
-        precision: 0.925,
-        recall: 0.942,
-        f1Score: 0.933,
-        rocAuc: 0.965,
-        latencyMs: 120,
-        sampleCount: 2500,
-      },
-      {
-        name: 'TF-IDF + Logistic Regression',
-        architecture: 'N-Gram Vectorizer + L2 Penalized Classifier',
-        accuracy: 0.872,
-        precision: 0.860,
-        recall: 0.854,
-        f1Score: 0.857,
-        rocAuc: 0.912,
-        latencyMs: 12,
-        sampleCount: 2500,
-      },
-    ],
-    confusionMatrix: {
-      truePositive: 1188,
-      falsePositive: 52,
-      trueNegative: 1222,
-      falseNegative: 38,
-    },
-    featureWeights: [
-      { feature: 'telegram', weight: 3.42, category: 'Scam Indicator' },
-      { feature: 'registration fee', weight: 4.15, category: 'Scam Indicator' },
-      { feature: 'security deposit', weight: 3.88, category: 'Scam Indicator' },
-      { feature: 'like videos', weight: 3.12, category: 'Scam Indicator' },
-      { feature: 'daily payout usdt', weight: 3.95, category: 'Scam Indicator' },
-      { feature: 'careers@company.com', weight: -2.85, category: 'Legitimate Indicator' },
-      { feature: 'full-time health insurance', weight: -2.40, category: 'Legitimate Indicator' },
-      { feature: 'linkedin verified portal', weight: -3.10, category: 'Legitimate Indicator' },
-    ],
-    datasetStats: {
-      totalSamples: 2500,
-      legitimateCount: 1274,
-      scamCount: 1226,
-      testRatio: 0.20,
-    },
-  };
-
-  return res.status(200).json({
-    success: true,
-    data: metrics,
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    const report = await readFile(
+      new URL('../public/research-metrics.json', import.meta.url),
+      'utf8'
+    );
+    const metrics = JSON.parse(report) as ResearchMetricsExport;
+    return res.status(200).json({ success: true, data: metrics });
+  } catch (error) {
+    console.error('Failed to load exported research metrics:', error);
+    return res.status(503).json({
+      success: false,
+      error: 'Research metrics are unavailable. Export the reports before serving them.',
+    });
+  }
 }
 
 /**

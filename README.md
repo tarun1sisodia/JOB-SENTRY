@@ -1,79 +1,61 @@
-# JobSentry (FakeJobScanner) - React Application
+# JobSentry
 
-Advisory tool that helps a job applicant check a job posting **before applying**, so they can see its risk indicator and know what to verify next.
+JobSentry is a locally run prototype for reviewing job-posting risk indicators. It consists of a React/TypeScript frontend, a Node.js/Express backend, and a Python/FastAPI ML service.
 
-> **"This is an advisory risk indicator, not proof of fraud."**
+## What exists
 
----
+- The research pipeline trains a TF-IDF Logistic Regression model with SMOTE and seven metadata features.
+- The app uses a separate text-only prototype model from `ml_service/models/deployed/`.
+- The ML service adds rule-based explanations to its prediction.
+- If the FastAPI service is unavailable, the Express backend falls back to its deterministic rule engine.
+- Research metrics are read from the CSV reports in `ml_service/reports/`; the dashboard JSON is generated from those reports and the deployed model coefficients.
 
-## Overview
+This repository describes a local prototype. It does not configure deployment of the Python ML service or its model.
 
-JobSentry has been rewritten into a modern, responsive, high-performance **React + TypeScript + Vite** single-page web application, preserving all specified features, data models, validation requirements, and API contracts.
+## Run locally
 
-## Key Features & UI Structure (Strict Single-Page Order)
-
-1. **Hero**: One-line promise and quick paste box.
-2. **Analysis Form**:
-   - `job_text`: Required job description / posting text.
-   - `email`: Recruiter email with format validation.
-   - `company`: Company name.
-   - `salary`: Numeric salary validation.
-   - **Analyze Button**: Includes loading spinner during scan.
-3. **Try Example Button**: Pre-loaded scenario selector (Telegram fee scam, WhatsApp task scam, verified tech role).
-4. **Result Card**:
-   - Colour-coded risk badge: Green (**Low**), Amber/Orange (**Medium**), Red (**High**).
-   - Score progress bar with numerical score (0.00 to 1.00).
-   - Red flags list with indicator icons.
-   - Recommended advice / verification steps list.
-5. **How It Works**: 3-step advisory workflow.
-6. **Common Scams Section**: Explanations of Upfront fees, Fake cheques, Telegram task ratings, and Phishing.
-7. **What To Do If Scammed**: Emergency response featuring **helpline 1930** and **cybercrime.gov.in**, plus a 4-step damage control checklist.
-8. **Inspection History Table**:
-   - Stores `checks(id, job_text, email, company, salary, risk_level, score, created_at)` in persistent local storage.
-   - Every valid analysis is saved immediately.
-   - Filter by search keyword or risk level, view detail modals, and export JSON.
-9. **Advisory Disclaimer**: Formal disclaimer highlighting the advisory nature of the scanner.
-
-## Frozen MVP Contract & Smart Heuristics
-
-The application supports both:
-- **Frozen MVP Mode**: Faithfully returns the specification's frozen dummy output (`risk_level: "High"`, `score: 0.78`, red flags, advice) for viva demo verification.
-- **Smart Heuristics Mode**: Dynamically inspects public email domains (e.g. `@gmail.com`), Telegram/WhatsApp contact methods, registration/equipment deposit requests, and compensation anomalies.
-- **Simulate Backend Down Toggle**: Tests frontend resilience with HTTP 503 error states and retry handling.
-
-## Running Locally
+Install the JavaScript dependencies:
 
 ```bash
 npm install
+```
+
+In one terminal, install the Python dependencies and run the FastAPI service from the repository root:
+
+```bash
+python -m pip install -r ml_service/requirements.txt
+python -m uvicorn ml_service.api:app --host 127.0.0.1 --port 8000
+```
+
+In another terminal, run the React frontend and Express backend:
+
+```bash
 npm run dev
 ```
 
-Dev server runs on `http://localhost:3000`.
-Build for production:
+The local web application is available at `http://localhost:3000`. If the ML service is not running, the Express backend uses its deterministic rule-engine fallback.
+
+## Train models and refresh metrics
+
+Run the training pipeline you need:
 
 ```bash
-npm run build
-```
-
-## Training the ML Service
-
-Choose which ML training pipeline to run:
-
-```bash
-python ml_service/train.py
 python ml_service/train.py --pipeline research
 python ml_service/train.py --pipeline deployed
 python ml_service/train.py --pipeline all
 ```
 
-The default is `deployed`. The `research` option regenerates the research model
-and reports; `deployed` trains the text-only deployment model in its separate
-artifact directory; `all` runs both pipelines.
+Export the reports and deployed-model coefficients for the dashboard:
 
-## Cloudflare & Render Deployment
+```bash
+python scripts/export-metrics.py
+```
 
-JobSentry supports decoupled production deployment:
-- **Frontend**: [Cloudflare Pages](https://pages.cloudflare.com/) (React 19 + Vite SPA)
-- **Backend**: [Render](https://render.com/) (Node.js Express API with Gemini 3.8 Flash Hybrid Engine)
+The dashboard data is written to `public/research-metrics.json`. Measured results are recorded in:
 
-For full step-by-step instructions, see [`RENDER_DEPLOYMENT.md`](RENDER_DEPLOYMENT.md) and [`render.yaml`](render.yaml).
+- `ml_service/reports/metrics.csv`
+- `ml_service/reports/ablation_metrics.csv`
+- `ml_service/reports/grouped_cv.csv`
+- `ml_service/reports/deployed_metrics.csv`
+
+Build the frontend and backend bundle with `npm run build`.

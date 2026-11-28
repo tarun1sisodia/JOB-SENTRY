@@ -1,5 +1,5 @@
 services:
-  # JobSentry Backend API Service on Render
+  # Node API only; this blueprint does not provision the Python ML service.
   - type: web
     name: jobsentry-api
     runtime: node
@@ -13,5 +13,3 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: GEMINI_API_KEY
-        sync: false # Set this securely in the Render Dashboard Environment tab

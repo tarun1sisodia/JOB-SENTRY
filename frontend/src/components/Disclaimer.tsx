@@ -13,10 +13,10 @@ export const Disclaimer: React.FC = () => {
               &ldquo;This is an advisory risk indicator, not proof of fraud.&rdquo;
             </p>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              JobSentry is an informational analysis system engineered to alert job applicants to common scam patterns, suspicious communication channels, and unverified recruiter domains. A high risk score indicates structural threat indicators, while a low score does not guarantee immunity from sophisticated fraud. Always verify job postings independently through official corporate registries and employer careers portals.
+              JobSentry is a locally run prototype that combines a text-only classifier with rule-based checks of posting details. Its result is advisory, not proof of fraud or legitimacy. Verify job offers independently with the named employer.
             </p>
             <div className="pt-3 text-[11px] font-mono text-zinc-400 dark:text-zinc-600 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200 dark:border-zinc-800">
-              <span>JobSentry Enterprise Advisory Platform</span>
+              <span>JobSentry Advisory Prototype</span>
               <span>Helpline: 1930 · cybercrime.gov.in</span>
             </div>
           </div>
