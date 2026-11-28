@@ -1,0 +1,6 @@
+{
+  "selected_config": "c_smote_only",
+  "threshold_recall_at_least_0.80": 0.677693581948083,
+  "threshold_max_f1_unconstrained": 0.7063834114612537,
+  "recall_floor": 0.8
+}

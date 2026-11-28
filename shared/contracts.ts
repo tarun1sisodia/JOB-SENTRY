@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * JobSentry Enterprise Shared Contracts (Single Source of Truth)
+ * JobSentry shared contracts (single source of truth)
  * Zero-fallback tolerance with dual casing support (camelCase domain <-> snake_case wire)
  */
 
@@ -122,43 +122,71 @@ export interface JobAuditRecord {
   createdAt: string;
 }
 
-/**
- * Research Benchmark Metrics
- */
-export interface ModelBenchmark {
-  name: string;
-  architecture: string;
-  accuracy: number;
+export interface ResearchConfusionCounts {
+  tn: number;
+  fp: number;
+  fn: number;
+  tp: number;
+}
+
+export interface ResearchTestMetric {
+  threshold_name: string;
+  threshold: number;
   precision: number;
   recall: number;
-  f1Score: number;
-  rocAuc: number;
-  latencyMs: number;
-  sampleCount: number;
+  f1: number;
+  roc_auc: number;
+  pr_auc: number;
+  confusion: ResearchConfusionCounts;
 }
 
-export interface ConfusionMatrix {
-  truePositive: number;
-  falsePositive: number;
-  trueNegative: number;
-  falseNegative: number;
+export interface ResearchAblationMetric {
+  split: string;
+  config: string;
+  description: string;
+  threshold_name: string;
+  threshold: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  roc_auc: number;
+  pr_auc: number;
 }
 
-export interface FeatureWeight {
+export interface ResearchCrossValidationMetric {
+  cv_type: string;
+  precision_mean: number;
+  precision_std: number;
+  recall_mean: number;
+  recall_std: number;
+  f1_mean: number;
+  f1_std: number;
+}
+
+export interface ResearchDeployedMetric extends ResearchTestMetric {
+  model: string;
+}
+
+export interface ResearchCoefficient {
   feature: string;
-  weight: number;
-  category: string;
+  coefficient: number;
 }
 
-export interface ResearchDatasetMetrics {
-  models: ModelBenchmark[];
-  confusionMatrix: ConfusionMatrix;
-  featureWeights: FeatureWeight[];
-  datasetStats: {
-    totalSamples: number;
-    legitimateCount: number;
-    scamCount: number;
-    testRatio: number;
+export interface ResearchMetricsExport {
+  testSet: {
+    total_postings: number;
+    fraudulent: number;
+  };
+  researchModel: {
+    config: string;
+    test_metrics: ResearchTestMetric[];
+  };
+  ablation_metrics: ResearchAblationMetric[];
+  grouped_cv: ResearchCrossValidationMetric[];
+  deployed_metrics: ResearchDeployedMetric[];
+  deployed_coefficients: {
+    positive: ResearchCoefficient[];
+    negative: ResearchCoefficient[];
   };
 }
 

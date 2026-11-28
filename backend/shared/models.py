@@ -1,5 +1,5 @@
 """
-JobSentry Enterprise Shared Models (Python / Pydantic)
+JobSentry shared models (Python / Pydantic)
 Single Source of Truth for ML and Python Microservices
 """
 

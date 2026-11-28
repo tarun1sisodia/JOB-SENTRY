@@ -103,17 +103,17 @@ export const HeroAndForm: React.FC<HeroAndFormProps> = ({
         {/* Editorial Hero Header */}
         <div className="text-center space-y-3 mb-8 sm:mb-10 animate-text-reveal">
           <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest flex items-center justify-center gap-2">
-            <span>Pre-Application Job Scam Scanner</span>
+            <span>Local Job-Posting Risk Prototype</span>
             <span>·</span>
             <span>Free Advisory Check</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight [text-wrap:balance]">
-            Check any job posting before you apply.
+            Review a job posting before you apply.
           </h1>
 
           <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-xl mx-auto font-normal [text-wrap:balance]">
-            Spot suspicious recruiter emails, upfront fee traps, and unmonitored chat channels in seconds.
+            Review posting text, recruiter details, and rule-based risk indicators.
           </p>
         </div>
 

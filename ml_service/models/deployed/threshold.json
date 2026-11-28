@@ -1,0 +1,5 @@
+{
+  "selected_config": "deployed_text_only",
+  "threshold_recall_at_least_0.80": 0.44286857489194814,
+  "recall_floor": 0.8
+}

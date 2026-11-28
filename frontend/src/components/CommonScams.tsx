@@ -6,29 +6,29 @@ export const CommonScams: React.FC = () => {
       category: 'Financial Extortion',
       title: 'Upfront Registration & Training Fees',
       summary:
-        'Fraudsters ask applicants to pay for mandatory "documentation", "laptop insurance", or "background screening" prior to starting work.',
-      rule: 'Legitimate employers never charge candidates to apply or receive company equipment.',
+        'Some suspicious postings request payment for documentation, equipment, or screening before work begins.',
+      rule: 'Treat upfront payment requests as a warning sign and verify them independently.',
     },
     {
       category: 'Banking / Money Mule',
       title: 'Fake Cheque & Office Equipment Overpayment',
       summary:
-        'Applicant receives an electronic cheque to deposit, then is instructed to wire money to a specific "certified equipment vendor" before the cheque bounces.',
-      rule: 'Never deposit cheques from unknown parties or wire funds to third-party vendors.',
+        'A posting may ask an applicant to deposit a cheque and forward part of the funds to a vendor.',
+      rule: 'Do not forward funds from a cheque before confirming it with your bank.',
     },
     {
       category: 'Crypto / Click Farming',
       title: 'Telegram & WhatsApp "Task Rating" Schemes',
       summary:
-        'Recruiters offer high daily pay ($300–$800) for trivial tasks like reviewing Google Maps places or liking YouTube videos, then require crypto wallet top-ups.',
-      rule: 'Official corporate recruitment does not occur solely through private chat groups.',
+        'Some task schemes promise unusually high pay for simple online actions and then request wallet deposits.',
+      rule: 'Verify the employer and avoid paying to unlock tasks or earnings.',
     },
     {
       category: 'Identity Theft',
       title: 'Brand Impersonation & Phishing',
       summary:
-        'Attackers pose as HR leaders from Microsoft, Amazon, or Infosys using lookalike domains or free Gmail accounts to collect identity documents.',
-      rule: 'Always confirm the vacancy on the employer’s official verified careers portal.',
+        'A scammer may impersonate a recruiter using a similar-looking domain or an unrelated email account.',
+      rule: 'Confirm the vacancy and recruiter through contact details found independently.',
     },
   ];
 
@@ -37,13 +37,13 @@ export const CommonScams: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <div className="text-center mb-10">
           <div className="text-xs font-mono text-zinc-500 uppercase tracking-widest mb-1">
-            Threat Intelligence
+            Safety Notes
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-zinc-950 dark:text-zinc-50">
             Common Employment Scam Patterns
           </h2>
           <p className="text-xs sm:text-sm text-zinc-500 mt-2 max-w-lg mx-auto">
-            Recognize the standard operating procedures cybercriminals use to trap job seekers.
+            Examples of warning signs to review; no single sign proves a posting is fraudulent.
           </p>
         </div>
 

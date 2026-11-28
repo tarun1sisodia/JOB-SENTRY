@@ -138,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {/* Stage switcher */}
                 <div>
                   <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                    Execution Mode
+                    Response Detail
                   </label>
                   <div className="grid grid-cols-2 gap-1.5 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs">
                     <button
@@ -151,7 +151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }`}
                     >
                       {stage === 'production' && <Check className="w-3 h-3" />}
-                      <span>Production</span>
+                      <span>Standard</span>
                     </button>
                     <button
                       type="button"
@@ -163,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }`}
                     >
                       {stage === 'staging' && <Check className="w-3 h-3" />}
-                      <span>Staging (Debug)</span>
+                      <span>Diagnostics</span>
                     </button>
                   </div>
                   <p className="text-[10px] text-zinc-500 mt-1">

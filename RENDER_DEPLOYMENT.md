@@ -1,118 +1,34 @@
-# Deploying JobSentry Server to Render (with Cloudflare Frontend)
+# Local prototype services
 
-This guide explains how to deploy the **JobSentry Express Backend Server** to **Render** while running the **Frontend on Cloudflare Pages**.
+This repository is documented as a locally run prototype, not as a deployed model service. The existing `render.yaml` describes a Node API service only; it does not provision the Python/FastAPI ML service or its model. It is not a full-stack model deployment configuration.
 
----
+## Run the ML service
 
-## Architecture Overview
+From the repository root, install the Python dependencies and start FastAPI:
 
-```
-┌───────────────────────────────────────┐         ┌───────────────────────────────────────┐
-│     Cloudflare Pages (Frontend)       │  CORS   │       Render Web Service (API)        │
-│  https://your-site.pages.dev          ├────────►│  https://jobsentry-api.onrender.com   │
-│  - React 19 + Vite SPA                │  Fetch  │  - Express + TypeScript (server.ts)   │
-│  - VITE_API_URL pointing to Render    │         │  - Gemini 3.8 Flash Hybrid Engine     │
-└───────────────────────────────────────┘         └───────────────────────────────────────┘
+```bash
+python -m pip install -r ml_service/requirements.txt
+python -m uvicorn ml_service.api:app --host 127.0.0.1 --port 8000
 ```
 
----
+## Run the frontend and backend
 
-## Step 1: Deploy Server to Render
+In another terminal, install JavaScript dependencies and start the Express/Vite application:
 
-### Option A: Automated (Render Blueprint)
-1. Go to [Render Dashboard](https://dashboard.render.com/).
-2. Click **New +** > **Blueprint**.
-3. Connect your GitHub repository.
-4. Render will automatically detect [`render.yaml`](render.yaml) and configure the web service.
-5. In the Environment settings, provide your `GEMINI_API_KEY` (optional for rule-based engine, required for Gemini AI inference).
-6. Click **Apply**.
+```bash
+npm install
+npm run dev
+```
 
----
+The frontend and backend run together through `server.ts`. The backend expects the ML service at its local default address. If that service is unavailable, the backend uses its deterministic rule-engine fallback.
 
-### Option B: Manual Web Service Configuration
-If you prefer configuring manually in Render:
+## Train and export
 
-1. Click **New +** > **Web Service**.
-2. Connect your GitHub repository (`JOB-SENTRY`).
-3. Set the configuration values:
-   - **Name**: `jobsentry-api` (or your choice)
-   - **Language / Runtime**: `Node`
-   - **Branch**: `main`
-   - **Region**: Oregon (or closest to your audience)
-   - **Build Command**:
-     ```bash
-     npm install && npm run build:backend
-     ```
-   - **Start Command**:
-     ```bash
-     npm start
-     ```
-   - **Instance Type**: `Free`
+```bash
+python ml_service/train.py --pipeline research
+python ml_service/train.py --pipeline deployed
+python ml_service/train.py --pipeline all
+python scripts/export-metrics.py
+```
 
-4. Add **Environment Variables** in Render:
-   | Key | Value | Description |
-   | :--- | :--- | :--- |
-   | `NODE_ENV` | `production` | Enables production routing & optimizations |
-   | `PORT` | `10000` | Port assigned by Render |
-   | `GEMINI_API_KEY` | *(your secret key)* | Google Gemini AI Studio key |
-
-5. Under **Advanced**, set **Health Check Path**:
-   - `/api/health`
-
-6. Click **Create Web Service**.
-
-Once deployed, copy your Render URL (e.g., `https://jobsentry-api.onrender.com`).
-
----
-
-## Step 2: Connect Cloudflare Pages to Render
-
-You can connect your Cloudflare Pages frontend to Render using either of the two methods below:
-
-### Method 1: Set `VITE_API_URL` in Cloudflare (Recommended)
-1. Open your **Cloudflare Dashboard** > **Workers & Pages**.
-2. Select your JobSentry Pages project.
-3. Go to **Settings** > **Environment variables**.
-4. Add variable under **Production** (and Preview if needed):
-   - **Variable name**: `VITE_API_URL`
-   - **Value**: `https://jobsentry-api.onrender.com` *(replace with your actual Render URL, no trailing slash)*
-5. Trigger a new deployment (or go to **Deployments** > **Retry deployment**).
-   - Vite will bake the URL into the client bundle at build time.
-   - CORS is already pre-configured in `server.ts` to accept cross-origin requests.
-
----
-
-### Method 2: Cloudflare Pages Proxy (`_redirects`)
-If you do not want to set environment variables:
-1. Open [`public/_redirects`](public/_redirects).
-2. Uncomment the proxy rule and enter your Render URL:
-   ```txt
-   /api/*  https://jobsentry-api.onrender.com/api/:splat  200
-   /*      /index.html                                     200
-   ```
-3. Commit and push to GitHub. Cloudflare will automatically proxy all `/api/*` traffic to Render without cross-origin overhead.
-
----
-
-## Step 3: Verification Checklist
-
-1. **Verify Backend Health**:
-   Open in your browser:
-   ```
-   https://<your-service>.onrender.com/api/health
-   ```
-   Expected response:
-   ```json
-   {
-     "status": "healthy",
-     "service": "JobSentry Backend Service",
-     "contractVersion": "2.0.0-zero-fallback",
-     "hasGeminiKey": true
-   }
-   ```
-
-2. **Verify Frontend UI**:
-   Open your Cloudflare URL (`https://<project>.pages.dev`).
-   - Run a test scan using **Try Example** (e.g. Telegram Fee Scam).
-   - Verify that the result card renders with risk score, red flags, and advice.
-   - Check the **Audit History** table and **Academic Research** dashboard tabs.
+Training metrics are written under `ml_service/reports/`. The export script generates `public/research-metrics.json` for the dashboard.
