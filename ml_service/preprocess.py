@@ -182,3 +182,8 @@ def transform_prediction_features(
     metadata = build_metadata(frame, cleaned_text)
     scaled_metadata, _, _ = scale_metadata(metadata, metadata, scaler=scaler)
     return make_sparse_features(text_features, scaled_metadata)
+
+
+def transform_text_features(job_text: str, vectorizer: Any) -> Any:
+    """Transform a posting into TF-IDF features without adding metadata."""
+    return vectorizer.transform([clean_text(job_text)])

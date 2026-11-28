@@ -16,7 +16,7 @@ import joblib
 SERVICE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SERVICE_DIR))
 
-from preprocess import clean_text, create_prediction_frame, transform_prediction_features
+from preprocess import clean_text, transform_text_features
 from shared.models import (
     JobCheckInput,
     JobCheckOutput,
@@ -67,12 +67,39 @@ CRYPTO_KEYWORDS = (
     "cashiers check",
     "wire transfer to vendor",
 )
+BEHAVIORAL_WARNING_TERMS = frozenset(
+    {"earn", "money", "link", "url", "phone", "whatsapp", "telegram"}
+)
+PAYMENT_NEGATION_PATTERNS = (
+    r"\bno\s+(?:(?:registration|processing|security|training|laptop|equipment|"
+    r"refundable|activation)\s+)?fees?\b"
+    r"(?:\s+(?:are\s+)?(?:charged|required|requested|collected))?",
+    r"\bnever\s+ask(?:s|ed)?\b.{0,80}\b(?:payment|fees?|deposits?)\b",
+    r"\bdo\s+not\s+ask\b.{0,80}\b(?:payment|fees?|deposits?)\b",
+    r"\bno\s+payment\s+(?:is\s+)?(?:required|requested|charged)\b",
+)
+SENSITIVE_INFO_PATTERN = re.compile(
+    r"\b(?:aadhaar|aadhar|pan(?:\s+(?:card|details|number))?|"
+    r"passport(?:\s+(?:copy|details))?|bank\s+details|"
+    r"bank\s+account(?:\s+(?:details|number))?|account\s+details|otp)\b",
+    re.IGNORECASE,
+)
+INFO_REQUEST_PATTERN = re.compile(
+    r"\b(?:send|share|submit|provide|upload|email|forward|supply|request|"
+    r"need|required)\b",
+    re.IGNORECASE,
+)
+NO_INTERVIEW_PATTERN = re.compile(
+    r"\bno\s+interviews?\b|\bwithout\s+(?:any\s+)?interviews?\b|"
+    r"\bselected\s+without\s+(?:any\s+)?interviews?\b",
+    re.IGNORECASE,
+)
 MODEL_DIR = SERVICE_DIR / "models"
+DEPLOYED_MODEL_DIR = MODEL_DIR / "deployed"
 REPORTS_DIR = SERVICE_DIR / "reports"
-MODEL_PATH = MODEL_DIR / "model.joblib"
-VECTORIZER_PATH = MODEL_DIR / "vectorizer.joblib"
-SCALER_PATH = MODEL_DIR / "scaler.joblib"
-THRESHOLD_PATH = MODEL_DIR / "threshold.json"
+MODEL_PATH = DEPLOYED_MODEL_DIR / "model.joblib"
+VECTORIZER_PATH = DEPLOYED_MODEL_DIR / "vectorizer.joblib"
+THRESHOLD_PATH = DEPLOYED_MODEL_DIR / "threshold.json"
 SAFE_WORDS_PATH = REPORTS_DIR / "user_safe_fraud_words.csv"
 
 
@@ -82,7 +109,6 @@ class ModelArtifacts:
 
     model: Any | None
     vectorizer: Any | None
-    scaler: Any | None
     threshold: float
     safe_words: frozenset[str]
 
@@ -91,7 +117,6 @@ class ModelArtifacts:
         return (
             self.model is not None
             and self.vectorizer is not None
-            and self.scaler is not None
         )
 
 
@@ -120,7 +145,6 @@ def load_model_artifacts() -> ModelArtifacts:
     required_paths = (
         MODEL_PATH,
         VECTORIZER_PATH,
-        SCALER_PATH,
         THRESHOLD_PATH,
     )
     missing_paths = [path for path in required_paths if not path.is_file()]
@@ -130,24 +154,23 @@ def load_model_artifacts() -> ModelArtifacts:
             "Trained model files are missing (%s); using keyword rules only.",
             ", ".join(str(path) for path in missing_paths),
         )
-        return ModelArtifacts(None, None, None, 0.65, safe_words)
+        return ModelArtifacts(None, None, 0.65, safe_words)
 
     try:
         model = joblib.load(MODEL_PATH)
         vectorizer = joblib.load(VECTORIZER_PATH)
-        scaler = joblib.load(SCALER_PATH)
         with THRESHOLD_PATH.open("r", encoding="utf-8") as threshold_file:
             threshold_data = json.load(threshold_file)
         threshold = float(threshold_data["threshold_recall_at_least_0.80"])
         if not 0 < threshold <= 1:
             raise ValueError(f"Model threshold must be in (0, 1], got {threshold}.")
-        return ModelArtifacts(model, vectorizer, scaler, threshold, safe_words)
+        return ModelArtifacts(model, vectorizer, threshold, safe_words)
     except (OSError, ValueError, KeyError, TypeError, EOFError) as error:
         LOGGER.warning(
             "Could not load trained model artifacts (%s); using keyword rules only.",
             error,
         )
-        return ModelArtifacts(None, None, None, 0.65, safe_words)
+        return ModelArtifacts(None, None, 0.65, safe_words)
 
 
 # Loading here keeps deserialization out of the request path.
@@ -160,6 +183,8 @@ def safe_matched_terms(text: str, company: str | None) -> list[str]:
     company_tokens = set(clean_text(company or "").split())
     matched = []
     for term in sorted(ARTIFACTS.safe_words, key=lambda value: (-len(value), value)):
+        if term not in BEHAVIORAL_WARNING_TERMS:
+            continue
         term_tokens = term.split()
         if set(term_tokens).isdisjoint(company_tokens) and re.search(
             rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized_text
@@ -173,13 +198,16 @@ def assess_keyword_rules(
     company: str | None,
     email: str | None = None,
     salary: str | None = None,
-) -> tuple[float, list[str], list[str], list[RiskFactorDetail]]:
+) -> tuple[float, list[str], list[str], list[RiskFactorDetail], bool]:
     """Apply the same deterministic indicators, weights, and wording as backend."""
     normalized_text = text.lower()
+    payment_search_text = normalized_text
+    for pattern in PAYMENT_NEGATION_PATTERNS:
+        payment_search_text = re.sub(pattern, " ", payment_search_text)
     normalized_email = (email or "").lower().strip()
     normalized_company = (company or "").strip()
     salary_num = (
-        float(re.sub(r"[\$,,\s]", "", salary))
+        float(re.sub(r"[\$,₹,\s]", "", salary))
         if salary
         else None
     )
@@ -188,6 +216,7 @@ def assess_keyword_rules(
     advice = []
     factors = []
     rule_score = 0.12
+    hard_rule_fired = False
 
     email_domain = normalized_email.split("@")[1] if "@" in normalized_email else None
     if email_domain and email_domain in FREE_EMAIL_PROVIDERS:
@@ -206,10 +235,11 @@ def assess_keyword_rules(
         rule_score += 0.35
 
     matched_payment = next(
-        (keyword for keyword in PAYMENT_KEYWORDS if keyword in normalized_text),
+        (keyword for keyword in PAYMENT_KEYWORDS if keyword in payment_search_text),
         None,
     )
     if matched_payment:
+        hard_rule_fired = True
         red_flags.append(
             f"Demands upfront financial transaction ({matched_payment})"
         )
@@ -223,6 +253,71 @@ def assess_keyword_rules(
             )
         )
         rule_score += 0.45
+
+    sensitive_info_requested = bool(
+        SENSITIVE_INFO_PATTERN.search(normalized_text)
+        and INFO_REQUEST_PATTERN.search(normalized_text)
+    )
+    if sensitive_info_requested:
+        hard_rule_fired = True
+        red_flags.append(
+            "Requests sensitive identity, banking or authentication details before a formal offer"
+        )
+        advice.append(
+            "Do not share identity documents, bank details or OTPs before verifying a formal offer"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="SENSITIVE_INFORMATION_REQUEST",
+                severity=RiskSeverity.CRITICAL,
+                category="Identity",
+                description=(
+                    "The posting requests sensitive personal or account information"
+                ),
+            )
+        )
+        rule_score += 0.45
+
+    if NO_INTERVIEW_PATTERN.search(normalized_text):
+        red_flags.append(
+            "Claims selection without an interview or a waived interview process"
+        )
+        advice.append(
+            "Verify the recruitment process with the employer through official channels"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="NO_INTERVIEW_CLAIM",
+                severity=RiskSeverity.HIGH,
+                category="Recruitment",
+                description="The posting claims selection without a normal interview",
+            )
+        )
+        rule_score += 0.25
+
+    has_personal_transfer_method = (
+        "upi" in normalized_text or "wire transfer" in normalized_text
+    ) and bool(re.search(r"\bpersonal\s+(?:bank\s+)?account\b", normalized_text))
+    if has_personal_transfer_method:
+        hard_rule_fired = True
+        red_flags.append(
+            "Requests payment by UPI or wire transfer to a personal account"
+        )
+        advice.append(
+            "Do not transfer recruitment fees to personal accounts or payment handles"
+        )
+        factors.append(
+            RiskFactorDetail(
+                id="PERSONAL_ACCOUNT_PAYMENT",
+                severity=RiskSeverity.CRITICAL,
+                category="Financial",
+                description=(
+                    "The posting directs payment through UPI or wire transfer "
+                    "to a personal account"
+                ),
+            )
+        )
+        rule_score += 0.4
 
     matched_messaging = next(
         (keyword for keyword in MESSAGING_KEYWORDS if keyword in normalized_text),
@@ -337,21 +432,18 @@ def assess_keyword_rules(
             "Verify recruiter on LinkedIn and confirm posting on official careers site"
         )
 
-    return rule_score, red_flags, advice, factors
+    return rule_score, red_flags, advice, factors, hard_rule_fired
 
 
 def predict_job_risk(payload: JobCheckInput) -> JobCheckOutput:
     """Use trained probabilities when available, with keyword rules as support."""
     text = payload.canonical_job_text
-    rule_score, red_flags, advice, factors = assess_keyword_rules(
+    rule_score, red_flags, advice, factors, hard_rule_fired = assess_keyword_rules(
         text, payload.company, payload.email, payload.salary
     )
 
     if ARTIFACTS.available:
-        frame = create_prediction_frame(text, payload.salary)
-        features = transform_prediction_features(
-            frame, ARTIFACTS.vectorizer, ARTIFACTS.scaler
-        )
+        features = transform_text_features(text, ARTIFACTS.vectorizer)
         fake_class_index = list(ARTIFACTS.model.classes_).index(1)
         model_prob = float(
             ARTIFACTS.model.predict_proba(features)[0, fake_class_index]
@@ -359,27 +451,35 @@ def predict_job_risk(payload: JobCheckInput) -> JobCheckOutput:
         score = 0.7 * model_prob + 0.3 * rule_score
 
         # Use the saved threshold to map model probability to the risk level.
-        if model_prob >= ARTIFACTS.threshold:
+        if (
+            model_prob >= ARTIFACTS.threshold
+            or hard_rule_fired
+            or rule_score >= 0.65
+        ):
             risk_level = RiskLevel.HIGH
         elif model_prob >= 0.5 * ARTIFACTS.threshold:
+            risk_level = RiskLevel.MEDIUM
+        elif rule_score >= 0.35:
             risk_level = RiskLevel.MEDIUM
         else:
             risk_level = RiskLevel.LOW
 
-        # A strong model signal must never be downgraded by score blending.
-        if model_prob >= ARTIFACTS.threshold:
-            risk_level = RiskLevel.HIGH
+        # A high-risk result always has a score consistent with the displayed level.
+        if risk_level == RiskLevel.HIGH:
+            score = max(score, 0.65)
     else:
-        # Preserve the old rule-based levels when trained files are unavailable.
+        # Apply the same rule thresholds when trained files are unavailable.
         model_prob = rule_score
         score = rule_score
         risk_level = (
             RiskLevel.HIGH
-            if rule_score >= 0.65
+            if hard_rule_fired or rule_score >= 0.65
             else RiskLevel.MEDIUM
             if rule_score >= 0.35
             else RiskLevel.LOW
         )
+        if risk_level == RiskLevel.HIGH:
+            score = max(score, 0.65)
 
     if not red_flags:
         red_flags.append("No primary scam triggers detected")

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fastapi.encoders import jsonable_encoder
 from api import predict
 from main import ARTIFACTS, load_model_artifacts, predict_job_risk, safe_matched_terms
+from preprocess import transform_text_features
 from shared.models import JobCheckInput, JobCheckOutput
 
 
@@ -99,6 +100,71 @@ class PredictionSmokeTests(unittest.TestCase):
         self.assertIn("COMMUNICATION_PRIVATE_CHAT", factor_ids)
         self.assertIn("ENTITY_UNDISCLOSED", factor_ids)
 
+    def test_s3_and_s4_style_postings_are_high_with_consistent_scores(self):
+        """Hard payment and sensitive-information signals must force High."""
+        postings = [
+            JobCheckInput(
+                job_text=(
+                    "Congratulations! You are selected for Customer Support "
+                    "Executive at a leading MNC without any interview. Pay a "
+                    "security deposit of 5000 for laptop and ID card, refundable "
+                    "after 3 months. Send your Aadhaar and bank details to confirm."
+                ),
+                email="recruitment.mnc.hr@outlook.com",
+                company="",
+                salary="45000",
+            ),
+            JobCheckInput(
+                job_text=(
+                    "Hiring freshers for back-office roles. Salary 60000 plus "
+                    "incentives. No interview. Send your passport copy, bank "
+                    "account details and a processing fee of 1500 via UPI to "
+                    "receive your offer letter."
+                ),
+                email="hiring.office@gmail.com",
+                company="",
+                salary="60000",
+            ),
+        ]
+
+        for request in postings:
+            with self.subTest(posting=request.canonical_job_text):
+                result = predict_job_risk(request)
+                self.assertEqual(result.risk_level.value, "High")
+                self.assertGreaterEqual(result.score, 0.65)
+
+    def test_never_ask_for_payment_does_not_trigger_fee_rule(self):
+        """Negated payment statements are excluded from the fee rule."""
+        result = predict_job_risk(
+            JobCheckInput(
+                job_text="We never ask candidates for any payment.",
+                company="Northstar Analytics",
+            )
+        )
+
+        self.assertFalse(
+            any("upfront financial transaction" in flag for flag in result.red_flags)
+        )
+        self.assertFalse(
+            any(factor.id == "PAYMENT_UPFRONT_DEMAND" for factor in result.factors or [])
+        )
+
+    def test_model_warning_terms_are_limited_to_behavioral_allowlist(self):
+        """Category words cannot be surfaced from trained model term reports."""
+        matched = safe_matched_terms(
+            "Earn money using this phone link; data entry assistant engineering hotel receptionist",
+            None,
+        )
+        self.assertTrue(
+            set(matched).issubset(
+                {"earn", "money", "link", "url", "phone", "whatsapp", "telegram"}
+            )
+        )
+        self.assertFalse(
+            {"data entry", "assistant", "engineering", "hotel", "receptionist"}
+            & set(matched)
+        )
+
     def test_threshold_artifacts_are_used_when_model_is_available(self):
         """Confirm a loaded threshold is valid and model flags are coherent."""
         if ARTIFACTS.available:
@@ -122,7 +188,6 @@ class PredictionSmokeTests(unittest.TestCase):
         with (
             patch("main.MODEL_PATH", missing_path),
             patch("main.VECTORIZER_PATH", missing_path),
-            patch("main.SCALER_PATH", missing_path),
             patch("main.THRESHOLD_PATH", missing_path),
             patch("main.SAFE_WORDS_PATH", missing_path),
             self.assertLogs("main", level="WARNING"),
@@ -157,6 +222,33 @@ class PredictionSmokeTests(unittest.TestCase):
         self.assertIn(validated.risk_level.value, {"Low", "Medium", "High"})
         self.assertGreaterEqual(validated.score, 0)
         self.assertLessEqual(validated.score, 1)
+
+    def test_short_legitimate_postings_have_model_probability_below_threshold(self):
+        """Check model-only scores for short software and bakery job text."""
+        self.assertTrue(ARTIFACTS.available, "Deployed model artifacts must be trained.")
+        postings = (
+            "Software engineer builds and maintains reliable business software.",
+            "Small bakery seeks a baker to prepare bread and pastries for customers.",
+        )
+        for posting in postings:
+            with self.subTest(posting=posting):
+                features = transform_text_features(posting, ARTIFACTS.vectorizer)
+                probability = float(ARTIFACTS.model.predict_proba(features)[0, 1])
+                self.assertLess(probability, ARTIFACTS.threshold)
+
+    def test_fee_and_telegram_scam_is_high(self):
+        """Hard fee and messaging rules keep a scam posting at High risk."""
+        result = predict_job_risk(
+            JobCheckInput(
+                job_text=(
+                    "Urgent hiring. Pay a processing fee to confirm your role "
+                    "and contact HR on Telegram."
+                ),
+                company="Global Hiring",
+            )
+        )
+        self.assertEqual(result.risk_level.value, "High")
+        self.assertGreaterEqual(result.score, 0.65)
 
 
 if __name__ == "__main__":
